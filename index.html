@@ -622,10 +622,11 @@ function initWindChart(){
     tip.innerHTML = '<b>' + h.wind.toFixed(0) + ' nós</b> · rajada ' + h.gust.toFixed(0) + '<br><span>' + dayLong(h.date) + ', ' + fmtH(h.date) + ' · de ' + dirName(h.dir) + '</span><br>' +
       '<i style="background:' + COLORS[h.r.cls] + '"></i>' + LABEL[h.r.cls];
     tip.style.display = "block";
+    updateCompass(h, i === 0);
     const px = x / d.W * r.width, tw = tip.offsetWidth;
     tip.style.left = Math.max(0, Math.min(r.width - tw, px - tw / 2)) + "px";
   };
-  const hide = () => { g.style.display = "none"; tip.style.display = "none"; };
+  const hide = () => { g.style.display = "none"; tip.style.display = "none"; updateCompass(d.list[0], true); };
   svg.addEventListener("pointermove", e => show(e.clientX));
   svg.addEventListener("pointerdown", e => show(e.clientX));
   svg.addEventListener("pointerleave", e => { if (e.pointerType === "mouse") hide(); });
@@ -666,10 +667,13 @@ function heroExtra(){
 }
 
 // ---------- Bússola do vento em relação à praia ----------
+function windRel(dir, spot){
+  const ad = angDiff(dir, spot.sea);
+  return ad <= 25 ? ["Do mar (onshore)", "#facc15"] : ad <= 100 ? ["Lateral ✓", "#22c55e"] : ad <= 135 ? ["Saindo da terra", "#f97316"] : (spot.lagoon ? ["Da margem", "#f97316"] : ["Terral ⚠", "#ef4444"]);
+}
 function windCompass(dir, spot){
   const P = (deg, r) => { const a = deg * Math.PI / 180; return [(r * Math.sin(a)).toFixed(1), (-r * Math.cos(a)).toFixed(1)]; };
-  const sea = spot.sea, ad = angDiff(dir, sea), R = 52;
-  const rel = ad <= 25 ? ["Do mar (onshore)", "#facc15"] : ad <= 100 ? ["Lateral ✓", "#22c55e"] : ad <= 135 ? ["Saindo da terra", "#f97316"] : (spot.lagoon ? ["Da margem", "#f97316"] : ["Terral ⚠", "#ef4444"]);
+  const sea = spot.sea, R = 52, rel = windRel(dir, spot);
   const a1 = P(sea - 90, R), a2 = P(sea + 90, R);
   let s = '<svg viewBox="-60 -60 120 120" role="img" aria-label="Bússola do vento">';
   s += '<circle r="' + R + '" fill="#c8a96a" opacity=".35"/>';
@@ -678,14 +682,22 @@ function windCompass(dir, spot){
   s += '<circle r="' + R + '" fill="none" stroke="#16486b" stroke-width="2"/>';
   [["N", 0], ["L", 90], ["S", 180], ["O", 270]].forEach(([l, d]) => { const p = P(d, 43); s += '<text x="' + p[0] + '" y="' + (+p[1] + 3.5) + '" text-anchor="middle" font-size="10" font-weight="700" fill="#e8f4fb" opacity=".85">' + l + '</text>'; });
   const sp = P(sea, 26); s += '<text x="' + sp[0] + '" y="' + (+sp[1] + 3) + '" text-anchor="middle" font-size="8" fill="#e0f2fe">mar</text>';
-  const st = P(dir, 50), en = P(dir, -16), h1 = P(dir + 180 - 28, 0), ang = dir + 180;
-  s += '<line x1="' + st[0] + '" y1="' + st[1] + '" x2="' + en[0] + '" y2="' + en[1] + '" stroke="' + rel[1] + '" stroke-width="4" stroke-linecap="round"/>';
-  const tip = P(dir, -26), l1 = [(+en[0] + 8 * Math.sin((ang - 150) * Math.PI / 180)).toFixed(1), (+en[1] - 8 * Math.cos((ang - 150) * Math.PI / 180)).toFixed(1)],
-        r1 = [(+en[0] + 8 * Math.sin((ang + 150) * Math.PI / 180)).toFixed(1), (+en[1] - 8 * Math.cos((ang + 150) * Math.PI / 180)).toFixed(1)];
-  s += '<polygon points="' + tip.join(",") + ' ' + l1.join(",") + ' ' + r1.join(",") + '" fill="' + rel[1] + '"/>';
-  s += '<circle cx="' + st[0] + '" cy="' + st[1] + '" r="4" fill="' + rel[1] + '" stroke="#041e30" stroke-width="1.5"/>';
+  // seta desenhada pro vento vindo do Norte e girada pela direção (gira suave quando muda)
+  s += '<g id="cmpArrow" data-a="' + dir + '" style="color:' + rel[1] + ';transform:rotate(' + dir + 'deg);transform-origin:0 0;transition:transform .4s ease,color .3s">' +
+       '<line x1="0" y1="-50" x2="0" y2="14" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>' +
+       '<polygon points="0,26 -6.5,11 6.5,11" fill="currentColor"/>' +
+       '<circle cx="0" cy="-50" r="4" fill="currentColor" stroke="#041e30" stroke-width="1.5"/></g>';
   s += '</svg>';
-  return '<div class="cmp-wrap">' + s + '<div class="cmp-l" style="color:' + rel[1] + '">' + rel[0] + '</div></div>';
+  return '<div class="cmp-wrap">' + s + '<div class="cmp-l" id="cmpLbl" style="color:' + rel[1] + '">' + rel[0] + '</div></div>';
+}
+function updateCompass(h, isNow){
+  const g = document.getElementById("cmpArrow"), lb = document.getElementById("cmpLbl");
+  if (!g || !lb || !lastData || !h) return;
+  const rel = windRel(h.dir, lastData.spot), mod = x => ((x % 360) + 360) % 360;
+  const last = +g.dataset.a || 0, a = last + (mod(h.dir - last + 180) - 180);
+  g.dataset.a = a; g.style.transform = "rotate(" + a + "deg)"; g.style.color = rel[1];
+  lb.style.color = rel[1];
+  lb.innerHTML = rel[0] + (isNow ? "" : '<br><span class="muted">' + dayLong(h.date) + ", " + fmtH(h.date) + '</span>');
 }
 
 // ---------- Cartão "Melhor janela" ----------
@@ -941,6 +953,7 @@ function initSea(start){
     const nx = hours[i+1] && hours[i+1].sea, tTxt = s.tide != null ? s.tide.toFixed(2) + " m" : "–";
     $("#seaTide").textContent = tTxt + (s.tide != null && nx && nx.tide != null ? (nx.tide > s.tide ? " ↑" : " ↓") : "");
     drawTide();
+    updateCompass(h, i === start);
   }
 
   function drawTide(){
