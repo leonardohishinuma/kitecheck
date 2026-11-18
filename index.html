@@ -464,6 +464,23 @@ function render(){
     (r.reasons.length ? '<details class="why"><summary>Por que essa avaliação?</summary><ul class="reasons">' + r.reasons.map(x => '<li>' + esc(x) + '</li>').join("") + '</ul></details>' : '') +
   '</div>';
 
+  // Mar (onda animada + rolagem pelas horas)
+  if (!spot.lagoon && hours.some(h => h.sea && h.sea.wh != null)) {
+    html += '<div class="card" id="seaCard"><h2>🌊 Mar</h2>' +
+      '<div class="seahead"><div><div class="muted" id="seaWhen"></div><div class="wh" id="seaH">–</div></div>' +
+      '<div style="text-align:right"><div class="sstate" id="seaState"></div><div class="muted" id="seaDir"></div></div></div>' +
+      '<canvas id="waveCv" aria-label="Onda animada"></canvas>' +
+      '<input type="range" id="seaScrub" min="' + idx + '" max="' + (hours.length - 1) + '" value="' + idx + '" aria-label="Escolher horário">' +
+      '<div class="muted" style="text-align:center">Arraste a onda ou a barra para ver as próximas horas</div>' +
+      '<div class="seagrid">' +
+        '<div class="stat"><b id="seaSwell">–</b><small>swell (ondulação)</small></div>' +
+        '<div class="stat"><b id="seaWind">–</b><small>mar de vento</small></div>' +
+        '<div class="stat"><b id="seaTemp">–</b><small>temp. da água</small></div>' +
+        '<div class="stat"><b id="seaTide">–</b><small>maré (modelo, aprox.)</small></div>' +
+      '</div><canvas id="tideCv" aria-label="Gráfico da maré"></canvas></div>';
+  }
+
+
   html += dayStoryHTML(hours, idx, spot);
   html += '<div class="card" id="whereCard"><h2>📍 Onde velejar hoje?' + proTag() + '</h2><div id="whereBody"><span class="spin"></span> Comparando os picos…</div></div>';
 
@@ -482,22 +499,6 @@ function render(){
            '<div class="muted">Vento médio ' + win.avg + ' nós, rajadas até ' + win.maxGust + ' · melhor às ' + fmtH(win.peak.date) + '. Estimativa: as condições podem mudar rápido.</div>'
          : '<div class="mi-v">Sem janela boa hoje nem amanhã</div><div class="muted">Veja os próximos dias abaixo ou compare outros picos.</div>') +
   '</div></div>';
-
-  // Mar (onda animada + rolagem pelas horas)
-  if (!spot.lagoon && hours.some(h => h.sea && h.sea.wh != null)) {
-    html += '<div class="card" id="seaCard"><h2>🌊 Mar</h2>' +
-      '<div class="seahead"><div><div class="muted" id="seaWhen"></div><div class="wh" id="seaH">–</div></div>' +
-      '<div style="text-align:right"><div class="sstate" id="seaState"></div><div class="muted" id="seaDir"></div></div></div>' +
-      '<canvas id="waveCv" aria-label="Onda animada"></canvas>' +
-      '<input type="range" id="seaScrub" min="' + idx + '" max="' + (hours.length - 1) + '" value="' + idx + '" aria-label="Escolher horário">' +
-      '<div class="muted" style="text-align:center">Arraste a onda ou a barra para ver as próximas horas</div>' +
-      '<div class="seagrid">' +
-        '<div class="stat"><b id="seaSwell">–</b><small>swell (ondulação)</small></div>' +
-        '<div class="stat"><b id="seaWind">–</b><small>mar de vento</small></div>' +
-        '<div class="stat"><b id="seaTemp">–</b><small>temp. da água</small></div>' +
-        '<div class="stat"><b id="seaTide">–</b><small>maré (modelo, aprox.)</small></div>' +
-      '</div><canvas id="tideCv" aria-label="Gráfico da maré"></canvas></div>';
-  }
 
   // Gráfico + próximas horas
   html += '<div class="card"><h2>📈 Vento nas próximas 24h' + proTag() + '</h2>' + windChart(hours, idx) + '<div class="hours">';
