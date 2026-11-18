@@ -112,6 +112,36 @@ dialog#dlg[open]{display:flex}
 .nav button.on{background:var(--card2);border-color:var(--line);color:var(--txt)}
 .ghead{margin:2px 0 4px}
 .ghead h2{font-size:22px;margin:0 0 4px}
+.upd{font-size:12px;color:var(--mut);text-align:right;margin:-4px 2px 8px}
+.stale{background:#3a2a06;border-color:#a16207;font-size:14px}
+.stale button{margin-left:6px;padding:4px 10px}
+.alerts{padding:10px 12px}
+.al{padding:9px 11px;border-radius:10px;font-size:14px;font-weight:600;margin-top:6px}
+.al:first-child{margin-top:0}
+.al.crit{background:#450a0a;border:1px solid #b91c1c;color:#fecaca}
+.al.warn{background:#3a2a06;border:1px solid #a16207;color:#fde68a}
+.hero2{padding:16px}
+.h2top{display:flex;justify-content:space-between;align-items:center;font-size:12px;letter-spacing:.5px}
+.h2wind{display:flex;align-items:baseline;gap:6px;margin-top:8px}
+.h2wind b{font-size:76px;line-height:.95;font-weight:800;letter-spacing:-3px}
+.h2wind span{font-size:22px;color:var(--mut);font-weight:700}
+.h2sub{font-size:16px;margin-top:4px}
+.hero2 .verdict{margin-top:12px}
+.h2score{font-size:12px;color:var(--mut);margin-top:12px}
+.why{margin-top:10px}
+.why summary{cursor:pointer;color:var(--acc);font-size:14px;font-weight:600}
+.mini{display:flex;gap:12px;align-items:flex-start}
+.mi-ic{font-size:26px;line-height:1.1}
+.mi-t{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;font-weight:700}
+.mi-v{font-size:17px;margin:2px 0 3px}
+.wchart{width:100%;height:auto;display:block}
+.wc-t{font-size:9px;fill:#8fb3c9}
+.wc-leg{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--mut);margin:6px 0 10px}
+.wc-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.cmp-row{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line);cursor:pointer}
+.cmp-row:first-child{border-top:0;padding-top:0}
+.cmp-row .info{flex:1;font-size:13px;color:var(--mut)}
+.cmp-row .info b{color:var(--txt);font-size:14px}
 .warn{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
 </style>
 </head>
@@ -220,7 +250,7 @@ function rate(h, spot){
     const k = Q.reduce((a,b) => Math.abs(b - ideal) < Math.abs(a - ideal) ? b : a);
     h.kite = k;
     if (k < ideal * 0.78) { score -= Math.min(45, Math.round((ideal * 0.78 - k) * 8) + 10); reasons.push("🪁 Com seus kites fica fraco: o melhor seria o de " + k + " m², mas o ideal é ~" + Math.round(ideal) + " m²."); }
-    else if (k > idealG * 1.35) { score -= 35; reasons.push("🪁 Com seus kites fica forte demais nas rajadas: o de " + k + " m² passa do ideal (~" + Math.round(idealG) + " m²)."); if (k > idealG * 1.7) danger = true; }
+    else if (k > idealG * 1.35) { score -= 35; reasons.push((k > idealG * 1.7 ? "🚫" : "⚠️") + " Com seus kites fica forte demais nas rajadas: o de " + k + " m² passa do ideal (~" + Math.round(idealG) + " m²)."); if (k > idealG * 1.7) danger = true; }
     else reasons.push("🪁 Vá de " + k + " m².");
   }
 
@@ -229,6 +259,10 @@ function rate(h, spot){
   if (gd > L.gustDelta + 6)      { score -= 40; reasons.push(`🌪️ Muito rajado (rajadas de ${h.gust.toFixed(0)} nós).`); if (h.gust > L.max + 8) danger = true; }
   else if (gd > L.gustDelta)     { score -= 20; reasons.push(`⚠️ Rajado: rajadas até ${h.gust.toFixed(0)} nós.`); }
   else if (w >= cfg.min)         { reasons.push(`👍 Vento constante (rajadas ${h.gust.toFixed(0)} nós).`); }
+
+  // Rajadas perigosas não podem ser compensadas por uma nota boa
+  if (h.gust > L.max + 5) { danger = true; reasons.push("🚫 Rajadas de " + h.gust.toFixed(0) + " nós: acima do limite do seu nível (" + L.max + " nós)."); }
+  else if (w >= 10 && h.gust >= 25 && h.gust >= w * 1.6) { danger = true; reasons.push("🚫 Vento muito irregular: rajadas " + Math.round((h.gust / w - 1) * 100) + "% mais fortes que a média."); }
 
   // Direção vs. praia
   const a = angDiff(h.dir, spot.sea);   // 0 = vem direto do mar
@@ -256,7 +290,9 @@ function rate(h, spot){
   score = Math.max(0, Math.min(100, Math.round(score)));
   if (danger) score = Math.min(score, 15);
   const cls = danger ? "danger" : score >= 80 ? "great" : score >= 62 ? "good" : score >= 42 ? "ok" : "bad";
-  return {score, cls, reasons};
+  const alerts = reasons.filter(x => /^(🚫|⛈️)/u.test(x)).map(t => ({lvl:"crit", t}))
+    .concat(reasons.filter(x => /^(⚠️|🌪️|🌊 Mar grande)/u.test(x)).map(t => ({lvl:"warn", t})));
+  return {score, cls, reasons, alerts};
 }
 
 function kiteSize(wind){
@@ -320,7 +356,7 @@ async function load(){
     hours.forEach(h => h.r = rate(h, spot));
     const sun = {};
     if (wr.daily && wr.daily.time) wr.daily.time.forEach((d,i) => sun[d] = {rise:(wr.daily.sunrise[i]||"").slice(11,16), set:(wr.daily.sunset[i]||"").slice(11,16), uv: wr.daily.uv_index_max ? wr.daily.uv_index_max[i] : null});
-    lastData = {spot, hours, utcOffset: wr.utc_offset_seconds, sun, nModels, cachedAt};
+    lastData = {spot, hours, utcOffset: wr.utc_offset_seconds, sun, nModels, cachedAt, fetchedAt: cachedAt ? null : Date.now()};
     store.set("kc_cache_"+spot.id, {saved:Date.now()});
     render();
   }catch(e){
@@ -354,126 +390,216 @@ function render(){
   lastData.idx = idx;
   const cur = hours[idx];
   const r = cur.r;
-  const ks = kiteSize(cur.wind);
+  const ks = kiteSize(cur.wind), ksG = kiteSize(cur.gust);
 
   const verdictTxt = {
     great:"Tá bombando! Bora velejar 🪁", good:"Tá bom pra kite!", ok:"Dá pra ir, mas não é o ideal",
     bad:"Tá ruim pra kite", danger:"Perigoso — fica na areia", none:"Agora é noite"
   }[r.cls];
 
-  // Próxima janela boa
-  let next = null;
-  for (let i = idx; i < hours.length; i++) if (hours[i].r.score >= 62 && hours[i].r.cls !== "danger") { next = hours[i]; break; }
-  const nextTxt = next ? (next === cur ? "Condição boa agora mesmo." : `Próxima janela boa: <b>${fmtDay(next.date)} às ${fmtH(next.date)}</b> (${next.wind.toFixed(0)} nós).`) : "Nenhuma janela boa nos próximos 7 dias.";
+  // Melhor janela: blocos de horas seguidas boas (hoje, senão amanhã)
+  const byDay = {};
+  hours.slice(idx).forEach(h => { const k = h.t.slice(0,10); (byDay[k] = byDay[k] || []).push(h); });
+  const dayKeys = Object.keys(byDay).sort();
+  let win = null;
+  for (const k of dayKeys.slice(0, 2)) { win = bestWindow(byDay[k]); if (win) break; }
 
-  let html = `
-  <div class="card hero">
-    <span class="badge" style="background:${COLORS[r.cls]}">${LABEL[r.cls]}</span>
-    <div class="score" style="color:${COLORS[r.cls]}">${r.cls==="none"?"–":r.score}</div>
-    <div class="verdict">${verdictTxt}</div>
-    <div class="muted">Agora · ${fmtH(cur.date)}</div>
-    <div class="stats">
-      <div class="stat"><b>${cur.wind.toFixed(0)}</b><small>vento (nós)</small></div>
-      <div class="stat"><b>${cur.gust.toFixed(0)}</b><small>rajada (nós)</small></div>
-      <div class="stat"><b><span class="arr" style="transform:rotate(${cur.dir+180}deg)">↑</span> ${dirName(cur.dir)}</b><small>direção</small></div>
-      <div class="stat"><b>${cur.temp!=null?cur.temp.toFixed(0)+"°":"–"}</b><small>temperatura</small></div>
-      <div class="stat"><b>${cur.rain}%</b><small>chuva</small></div>
-      <div class="stat"><b>${cur.wave!=null?cur.wave.toFixed(1)+" m":"–"}</b><small>ondas</small></div>
-    </div>
-    <ul class="reasons">${r.reasons.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
-    ${ks && r.cls!=="none" ? `<div class="kite">🪁 ${cur.kite ? "Seu kite: <b>" + cur.kite + " m²</b> · ideal" : "Kite sugerido:"} <b>${ks} m²</b>${kiteSize(cur.gust) && kiteSize(cur.gust) < ks - 1 ? " (nas rajadas, " + kiteSize(cur.gust) + " m²)" : ""} · Roupa: <b>${wetsuit(cur.sea && cur.sea.sst != null ? cur.sea.sst : cur.temp)}</b></div>` : ""}
-    <div class="kite">${nextTxt}</div>
-    ${heroExtra()}
-  </div>`;
+  const alerts = upcomingAlerts(hours, idx);
+  const stat = (v, l) => '<div class="stat"><b>' + v + '</b><small>' + l + '</small></div>';
+
+  let html = statusHTML();
+  if (alerts.length) html += '<div class="card alerts">' + alerts.map(a => '<div class="al ' + a.lvl + '">' + esc(a.t) + '</div>').join("") +
+    '<div class="muted" style="margin-top:8px">Alertas aparecem mesmo quando a nota geral é boa.</div></div>';
+
+  html += '<div class="card hero2">' +
+    '<div class="h2top"><span class="muted">CONDIÇÕES AGORA · ' + fmtH(cur.date) + '</span><span class="badge" style="background:' + COLORS[r.cls] + '">' + LABEL[r.cls] + '</span></div>' +
+    '<div class="h2wind"><b>' + cur.wind.toFixed(0) + '</b><span>nós</span></div>' +
+    '<div class="h2sub">Rajadas de <b>' + cur.gust.toFixed(0) + '</b> · vem de <b>' + dirName(cur.dir) + '</b> <span class="arr" style="transform:rotate(' + (cur.dir + 180) + 'deg)">↑</span></div>' +
+    '<div class="verdict">' + verdictTxt + '</div>' +
+    '<div class="stats">' + stat(cur.temp != null ? cur.temp.toFixed(0) + "°" : "–", "temperatura") + stat(cur.rain + "%", "chuva") +
+      stat(spot.lagoon ? "lagoa" : (cur.wave != null ? cur.wave.toFixed(1) + " m" : "–"), "ondas") + '</div>' +
+    heroExtra() +
+    '<div class="h2score">Índice KiteCheck: <b>' + (r.cls === "none" ? "–" : r.score + "/100") + '</b> · estimativa automática, não é autorização pra entrar na água.</div>' +
+    (r.reasons.length ? '<details class="why"><summary>Por que essa avaliação?</summary><ul class="reasons">' + r.reasons.map(x => '<li>' + esc(x) + '</li>').join("") + '</ul></details>' : '') +
+  '</div>';
+
+  // Equipamento
+  if (r.cls !== "none" && ks) {
+    const water = cur.sea && cur.sea.sst != null ? cur.sea.sst : cur.temp;
+    html += '<div class="card mini"><div class="mi-ic">🪁</div><div><div class="mi-t">Equipamento</div>' +
+      '<div class="mi-v">' + (cur.kite ? 'Seu kite mais indicado: <b>' + cur.kite + ' m²</b>' : 'Tamanho estimado: <b>' + ks + ' m²</b>') + '</div>' +
+      '<div class="muted">' + (cur.kite ? 'Estimativa pro seu peso: ' + ks + ' m²' : 'Cadastre seus kites em ⚙︎ pra uma sugestão com o seu equipamento') +
+      (ksG && ksG < ks - 1 ? ' · nas rajadas, ' + ksG + ' m²' : '') + '. Roupa: ' + wetsuit(water) + '. É uma estimativa: confira os limites do fabricante.</div></div></div>';
+  }
+
+  // Melhor janela
+  html += '<div class="card mini"><div class="mi-ic">⏱️</div><div><div class="mi-t">Melhor janela</div>' +
+    (win ? '<div class="mi-v"><b>' + fmtDay(win.start.date) + ' ' + fmtH(win.start.date) + '–' + fmtH(new Date(win.end.date.getTime() + 3600e3)) + '</b> (' + win.len + 'h)</div>' +
+           '<div class="muted">Vento médio ' + win.avg + ' nós, rajadas até ' + win.maxGust + ' · melhor às ' + fmtH(win.peak.date) + '. Estimativa: as condições podem mudar rápido.</div>'
+         : '<div class="mi-v">Sem janela boa hoje nem amanhã</div><div class="muted">Veja os próximos dias abaixo ou compare outros picos.</div>') +
+  '</div></div>';
 
   // Mar (onda animada + rolagem pelas horas)
   if (!spot.lagoon && hours.some(h => h.sea && h.sea.wh != null)) {
-    html += `<div class="card" id="seaCard"><h2>🌊 Mar</h2>
-      <div class="seahead"><div><div class="muted" id="seaWhen"></div><div class="wh" id="seaH">–</div></div>
-      <div style="text-align:right"><div class="sstate" id="seaState"></div><div class="muted" id="seaDir"></div></div></div>
-      <canvas id="waveCv" aria-label="Onda animada"></canvas>
-      <input type="range" id="seaScrub" min="${idx}" max="${hours.length-1}" value="${idx}" aria-label="Escolher horário">
-      <div class="muted" style="text-align:center">Arraste a onda ou a barra para ver as próximas horas</div>
-      <div class="seagrid">
-        <div class="stat"><b id="seaSwell">–</b><small>swell (ondulação)</small></div>
-        <div class="stat"><b id="seaWind">–</b><small>mar de vento</small></div>
-        <div class="stat"><b id="seaTemp">–</b><small>temp. da água</small></div>
-        <div class="stat"><b id="seaTide">–</b><small>maré (aprox.)</small></div>
-      </div>
-      <canvas id="tideCv" aria-label="Gráfico da maré"></canvas>
-    </div>`;
+    html += '<div class="card" id="seaCard"><h2>🌊 Mar</h2>' +
+      '<div class="seahead"><div><div class="muted" id="seaWhen"></div><div class="wh" id="seaH">–</div></div>' +
+      '<div style="text-align:right"><div class="sstate" id="seaState"></div><div class="muted" id="seaDir"></div></div></div>' +
+      '<canvas id="waveCv" aria-label="Onda animada"></canvas>' +
+      '<input type="range" id="seaScrub" min="' + idx + '" max="' + (hours.length - 1) + '" value="' + idx + '" aria-label="Escolher horário">' +
+      '<div class="muted" style="text-align:center">Arraste a onda ou a barra para ver as próximas horas</div>' +
+      '<div class="seagrid">' +
+        '<div class="stat"><b id="seaSwell">–</b><small>swell (ondulação)</small></div>' +
+        '<div class="stat"><b id="seaWind">–</b><small>mar de vento</small></div>' +
+        '<div class="stat"><b id="seaTemp">–</b><small>temp. da água</small></div>' +
+        '<div class="stat"><b id="seaTide">–</b><small>maré (modelo, aprox.)</small></div>' +
+      '</div><canvas id="tideCv" aria-label="Gráfico da maré"></canvas></div>';
   }
 
-  // Próximas horas (24h)
-  html += `<div class="card"><h2>Próximas horas</h2><div class="hours">`;
-  hours.slice(idx, idx+24).forEach(h => {
-    html += `<div class="h"><div class="muted">${fmtH(h.date)}</div>
-      <div class="kn">${h.wind.toFixed(0)}</div>
-      <div class="muted">${h.gust.toFixed(0)}</div>
-      <span class="arr" style="transform:rotate(${h.dir+180}deg)">↑</span>
-      <div class="bar" style="background:${COLORS[h.r.cls]}"></div></div>`;
+  // Gráfico + próximas horas
+  html += '<div class="card"><h2>📈 Vento nas próximas 24h</h2>' + windChart(hours, idx) + '<div class="hours">';
+  hours.slice(idx, idx + 24).forEach(h => {
+    html += '<div class="h"><div class="muted">' + fmtH(h.date) + '</div><div class="kn">' + h.wind.toFixed(0) + '</div><div class="muted">' + h.gust.toFixed(0) + '</div>' +
+      '<span class="arr" style="transform:rotate(' + (h.dir + 180) + 'deg)">↑</span><div class="bar" style="background:' + COLORS[h.r.cls] + '"></div></div>';
   });
-  html += `</div><div class="muted">Vento médio / rajada em nós · seta = para onde o vento sopra</div>
-  <div class="legend">${["great","good","ok","bad","danger"].map(c=>`<span style="background:${COLORS[c]}">${LABEL[c]}</span>`).join("")}</div></div>`;
+  html += '</div><div class="muted">Vento médio / rajada em nós · seta = para onde o vento sopra</div>' +
+    '<div class="legend">' + ["great","good","ok","bad","danger"].map(c => '<span style="background:' + COLORS[c] + '">' + LABEL[c] + '</span>').join("") + '</div></div>';
 
-  // Próximos 7 dias: melhor janela de cada dia
+  // Próximos 7 dias
   const days = {};
   hours.forEach(h => { const k = h.t.slice(0,10); (days[k] = days[k] || []).push(h); });
-  html += `<div class="card"><h2>Próximos dias</h2>`;
+  html += '<div class="card"><h2>Próximos dias</h2>';
   Object.values(days).forEach(list => {
     const day = list.filter(h => h.isDay);
     if (!day.length) return;
     const best = day.reduce((a,b) => b.r.score > a.r.score ? b : a);
-    const good = day.filter(h => h.r.score >= 62 && h.r.cls !== "danger");
-    const win = good.length ? `${fmtH(good[0].date)}–${fmtH(new Date(good[good.length-1].date.getTime()+3600e3))}` : "sem janela boa";
-    html += `<div class="day">
-      <div class="dn">${fmtDay(list[0].date)}</div>
-      <div class="info"><b>${best.wind.toFixed(0)} nós</b> ${dirName(best.dir)} · rajada ${best.gust.toFixed(0)}<br>${good.length ? "Melhor: "+win : win}</div>
-      <div class="pill" style="background:${COLORS[best.r.cls]}">${LABEL[best.r.cls]}</div>
-    </div>`;
+    const w = bestWindow(list);
+    const shown = w ? w.peak : best;
+    html += '<div class="day"><div class="dn">' + fmtDay(list[0].date) + '</div>' +
+      '<div class="info"><b>' + shown.wind.toFixed(0) + ' nós</b> ' + dirName(shown.dir) + ' · rajada ' + shown.gust.toFixed(0) + '<br>' +
+      (w ? 'Janela: ' + fmtH(w.start.date) + '–' + fmtH(new Date(w.end.date.getTime() + 3600e3)) + ' (' + w.len + 'h)' : 'sem janela boa') + '</div>' +
+      '<div class="pill" style="background:' + COLORS[shown.r.cls] + '">' + LABEL[shown.r.cls] + '</div></div>';
   });
-  html += `</div><div class="card" id="cmpCard"><h2>🏆 Melhor pico</h2><div id="cmpBody"><button class="primary" id="btnCmp" style="width:100%">Comparar todos os picos</button></div></div><div class="warn">Previsão: Open-Meteo. Use como referência — sempre confira o mar no local e nunca veleje sozinho.</div>`;
+  html += '</div><div class="card" id="cmpCard"><h2>🏆 Melhor pico</h2><div id="cmpBody"><button class="primary" id="btnCmp" style="width:100%">Comparar todos os picos</button></div></div>' +
+    '<div class="warn">Previsão: Open-Meteo (modelos, não medições). O KiteCheck faz uma estimativa automática: sempre confira o mar no local e nunca veleje sozinho.</div>';
   $("#main").innerHTML = html;
   initSea(idx);
   const bc = document.getElementById("btnCmp"); if (bc) bc.addEventListener("click", compareSpots);
+  const br = document.getElementById("btnRetry"); if (br) br.addEventListener("click", load);
+}
+
+// Horas seguidas com condição boa (sem perigo); devolve o melhor bloco
+function bestWindow(list){
+  let best = null, cur = null;
+  const ok = h => h.isDay && h.r.cls !== "danger" && h.r.score >= 62;
+  list.forEach((h, i) => {
+    if (ok(h)) { if (!cur) cur = {a:i, b:i, sum:0}; cur.b = i; cur.sum += h.r.score; }
+    if ((!ok(h) || i === list.length - 1) && cur) { if (!best || cur.sum > best.sum) best = cur; cur = null; }
+  });
+  if (!best) return null;
+  const hs = list.slice(best.a, best.b + 1);
+  const peak = hs.reduce((x, y) => (y.r.score > x.r.score || (y.r.score === x.r.score && y.wind > x.wind)) ? y : x);
+  return {start:hs[0], end:hs[hs.length - 1], len:hs.length, val:best.sum, peak,
+    avg:Math.round(hs.reduce((s, h) => s + h.wind, 0) / hs.length), maxGust:Math.round(Math.max(...hs.map(h => h.gust)))};
+}
+
+// Alertas de agora + das próximas horas (não dependem da nota)
+function upcomingAlerts(hours, idx){
+  const out = (hours[idx].r.alerts || []).slice();
+  if (!out.some(a => a.t.indexOf("⛈️") === 0)) {
+    for (let i = idx + 1; i <= Math.min(hours.length - 1, idx + 6); i++)
+      if (hours[i].code >= 95) { out.push({lvl:"crit", t:"⛈️ Risco de trovoada a partir das " + fmtH(hours[i].date) + "."}); break; }
+  }
+  for (let i = idx; i + 3 < hours.length && i <= idx + 6; i++) {
+    const a = hours[i], b = hours[i + 3];
+    if ((a.isDay || b.isDay) && Math.abs(b.wind - a.wind) >= 10) {
+      out.push({lvl:"warn", t:"🔀 Mudança brusca: o vento vai de " + a.wind.toFixed(0) + " para " + b.wind.toFixed(0) + " nós até as " + fmtH(b.date) + "."}); break;
+    }
+  }
+  return out;
+}
+
+function statusHTML(){
+  const d = lastData;
+  if (d.cachedAt) {
+    const ageH = Math.round((Date.now() - d.cachedAt) / 36e5);
+    return '<div class="card stale">📴 <b>Sem conexão.</b> Mostrando a previsão salva de ' +
+      new Date(d.cachedAt).toLocaleString("pt-BR", {day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit"}) +
+      (ageH >= 1 ? ' (há ' + ageH + ' h)' : '') + ': pode estar desatualizada. <button id="btnRetry">Tentar de novo</button></div>';
+  }
+  return '<div class="upd">🔄 Atualizado às ' + new Date(d.fetchedAt || Date.now()).toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"}) + '</div>';
+}
+
+function windChart(hours, idx){
+  const list = hours.slice(idx, idx + 25); if (list.length < 2) return "";
+  const L = LEVELS[cfg.level], W = 340, H = 170, pl = 26, pr = 6, pt = 10, pb = 22;
+  const top = Math.max(L.max + 5, Math.ceil(Math.max(...list.map(h => h.gust)) / 5) * 5 + 5);
+  const X = i => pl + i * (W - pl - pr) / (list.length - 1), Y = v => pt + (1 - v / top) * (H - pt - pb);
+  const f = n => n.toFixed(1);
+  let s = '<svg class="wchart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Gráfico de vento e rajadas">';
+  list.forEach((h, i) => { if (i < list.length - 1) {
+    if (!h.isDay) s += '<rect x="' + f(X(i)) + '" y="' + pt + '" width="' + f(X(i + 1) - X(i)) + '" height="' + (H - pt - pb) + '" fill="rgba(0,0,0,.28)"/>';
+    else if (h.r.score >= 62 && h.r.cls !== "danger") s += '<rect x="' + f(X(i)) + '" y="' + pt + '" width="' + f(X(i + 1) - X(i)) + '" height="' + (H - pt - pb) + '" fill="rgba(34,197,94,.16)"/>';
+  }});
+  s += '<rect x="' + pl + '" y="' + f(Y(L.max)) + '" width="' + (W - pl - pr) + '" height="' + f(Y(cfg.min) - Y(L.max)) + '" fill="rgba(56,189,248,.07)"/>';
+  for (let v = 0; v <= top; v += 10) s += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + f(Y(v)) + '" y2="' + f(Y(v)) + '" stroke="#16486b" stroke-width="1"/><text x="' + (pl - 4) + '" y="' + f(Y(v) + 3) + '" text-anchor="end" class="wc-t">' + v + '</text>';
+  s += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + f(Y(cfg.min)) + '" y2="' + f(Y(cfg.min)) + '" stroke="#facc15" stroke-dasharray="4 3" stroke-width="1.2"/>';
+  s += '<path d="M' + list.map((h, i) => f(X(i)) + ',' + f(Y(h.gust))).join(' L') + ' L' + list.map((h, i) => f(X(i)) + ',' + f(Y(h.wind))).reverse().join(' L') + 'Z" fill="rgba(249,115,22,.22)"/>';
+  s += '<polyline points="' + list.map((h, i) => f(X(i)) + ',' + f(Y(h.gust))).join(' ') + '" fill="none" stroke="#f97316" stroke-width="1.5" stroke-dasharray="3 2"/>';
+  s += '<polyline points="' + list.map((h, i) => f(X(i)) + ',' + f(Y(h.wind))).join(' ') + '" fill="none" stroke="#38bdf8" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>';
+  list.forEach((h, i) => { if (i % 3 === 0) s += '<text x="' + f(X(i)) + '" y="' + (H - 6) + '" text-anchor="middle" class="wc-t">' + fmtH(h.date) + '</text>'; });
+  return s + '</svg><div class="wc-leg"><span><i style="background:#38bdf8"></i>vento médio</span><span><i style="background:#f97316"></i>rajadas</span>' +
+    '<span><i style="background:#facc15"></i>seu mínimo (' + cfg.min + ' nós)</span><span><i style="background:rgba(34,197,94,.55)"></i>horas boas</span><span><i style="background:rgba(0,0,0,.5)"></i>noite</span></div>';
 }
 
 function heroExtra(){
   const d = lastData, out = [], cur = d.hours[d.idx];
   const s = d.sun && d.sun[cur.t.slice(0,10)];
   if (s && s.rise) out.push("☀️ Sol " + s.rise + "–" + s.set + (s.uv != null ? " · UV máx " + s.uv.toFixed(0) + (s.uv >= 8 ? " (passe protetor!)" : "") : ""));
-  if (cur.conf) out.push("📊 Confiança da previsão: <b>" + cur.conf + "</b> (" + d.nModels + " modelos comparados)");
-  if (d.cachedAt) out.push("📴 Sem internet — mostrando previsão salva de " + new Date(d.cachedAt).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}));
+  if (cur.conf) out.push("📊 Os modelos de previsão " + (cur.conf === "alta" ? "concordam" : cur.conf === "média" ? "concordam em parte" : "discordam") + " (confiança " + cur.conf + ", " + d.nModels + " modelos)");
   return out.map(x => '<div class="kite">' + x + '</div>').join("");
 }
 
 async function compareSpots(){
   const body = document.getElementById("cmpBody"); if (!body) return;
   body.innerHTML = '<span class="spin"></span> Comparando ' + spots.length + ' picos…';
-  const url = "https://api.open-meteo.com/v1/forecast?latitude=" + spots.map(s => s.lat).join(",") + "&longitude=" + spots.map(s => s.lon).join(",") +
+  const coords = "latitude=" + spots.map(s => s.lat).join(",") + "&longitude=" + spots.map(s => s.lon).join(",");
+  const url = "https://api.open-meteo.com/v1/forecast?" + coords +
     "&hourly=precipitation_probability,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day&wind_speed_unit=kn&timezone=auto&forecast_days=2";
+  const murl = "https://marine-api.open-meteo.com/v1/marine?" + coords + "&hourly=wave_height&timezone=auto&forecast_days=2";
   try {
-    let res = await getJSON(url).catch(() => Promise.all(spots.map(s => getJSON(url.replace(/latitude=[^&]*&longitude=[^&]*/, "latitude=" + s.lat + "&longitude=" + s.lon)))));
+    let [res, mres] = await Promise.all([
+      getJSON(url).catch(() => Promise.all(spots.map(s => getJSON(url.replace(/latitude=[^&]*&longitude=[^&]*/, "latitude=" + s.lat + "&longitude=" + s.lon))))),
+      getJSON(murl).catch(() => null)
+    ]);
     if (!Array.isArray(res)) res = [res];
+    if (mres && !Array.isArray(mres)) mres = [mres];
     const rows = spots.map((s, k) => {
-      const H = res[k].hourly, nk = nowKey(res[k].utc_offset_seconds || 0), out = {};
-      H.time.forEach((t,i) => {
+      const H = res[k].hourly, nk = nowKey(res[k].utc_offset_seconds || 0), wv = {}, list = [];
+      const M = mres && mres[k] && mres[k].hourly;
+      if (M) M.time.forEach((t, i) => wv[t] = M.wave_height[i]);
+      H.time.forEach((t, i) => {
         if (t < nk) return;
         const h = {t, date:new Date(t), wind:H.wind_speed_10m[i] ?? 0, gust:H.wind_gusts_10m[i] ?? 0, dir:H.wind_direction_10m[i] ?? 0,
-          rain:H.precipitation_probability[i] ?? 0, code:H.weather_code[i] ?? 0, isDay:H.is_day[i] === 1, wave:null};
-        h.r = rate(h, s);
-        const day = t.slice(0,10);
-        if (h.isDay && (!out[day] || h.r.score > out[day].r.score)) out[day] = h;
+          rain:H.precipitation_probability[i] ?? 0, code:H.weather_code[i] ?? 0, isDay:H.is_day[i] === 1, wave: s.lagoon ? null : (wv[t] ?? null)};
+        h.r = rate(h, s); list.push(h);
       });
-      return {s, days: Object.keys(out).sort().map(d => out[d])};
-    }).filter(r => r.days.length);
-    const best = r => Math.max(...r.days.map(h => h.r.cls === "danger" ? 0 : h.r.score));
-    rows.sort((a,b) => best(b) - best(a));
-    body.innerHTML = rows.map(row => '<div class="day" data-id="' + esc(row.s.id) + '" style="cursor:pointer"><div class="info"><b>' + esc(row.s.name) + '</b><br>' +
-        row.days.map(h => fmtDay(h.date) + ": " + h.wind.toFixed(0) + " nós " + dirName(h.dir) + " às " + fmtH(h.date)).join("<br>") + '</div>' +
-        '<div>' + row.days.map(h => '<div class="pill" style="margin:2px 0;background:' + COLORS[h.r.cls] + '">' + LABEL[h.r.cls] + '</div>').join("") + '</div></div>').join("") +
-      '<div class="muted" style="margin-top:6px">Melhor horário de hoje e de amanhã em cada pico (só vento e tempo, sem ondas). Toque num pico para abrir.</div>';
-    body.querySelectorAll("[data-id]").forEach(el => el.addEventListener("click", () => { cfg.spot = el.getAttribute("data-id"); window.scrollTo(0,0); load(); }));
+      const byDay = {}; list.forEach(h => (byDay[h.t.slice(0,10)] = byDay[h.t.slice(0,10)] || []).push(h));
+      let pick = null; Object.keys(byDay).sort().some(d => (pick = bestWindow(byDay[d])) != null);
+      const dayH = list.filter(h => h.isDay);
+      const bestH = dayH.length ? dayH.reduce((a, b) => b.r.score > a.r.score ? b : a) : null;
+      return {s, pick, bestH, hasSea: !s.lagoon && list.some(h => h.wave != null)};
+    }).filter(r => r.bestH);
+    const value = r => r.pick ? 1000 + r.pick.val : (r.bestH.r.cls === "danger" ? 0 : r.bestH.r.score);
+    rows.sort((a, b) => value(b) - value(a));
+    body.innerHTML = rows.map(row => {
+      const p = row.pick, h = p ? p.peak : row.bestH;
+      const when = p ? fmtDay(p.start.date) + " " + fmtH(p.start.date) + "–" + fmtH(new Date(p.end.date.getTime() + 3600e3)) + " (" + p.len + "h)" : "sem janela boa hoje/amanhã";
+      const sea = row.s.lagoon ? "lagoa" : (row.hasSea && h.wave != null ? "mar " + h.wave.toFixed(1) + " m" : "sem dados de mar");
+      return '<div class="cmp-row" data-id="' + esc(row.s.id) + '"><div class="info"><b>' + esc(row.s.name) + '</b><br>' + when + '<br>' +
+        '<span class="muted">' + (p ? p.avg : Math.round(h.wind)) + ' nós · rajada ' + (p ? p.maxGust : Math.round(h.gust)) + ' · ' + sea + '</span></div>' +
+        '<div class="pill" style="background:' + COLORS[h.r.cls] + '">' + LABEL[h.r.cls] + '</div></div>';
+    }).join("") + '<div class="muted" style="margin-top:6px">Ordenado pela melhor janela de hoje e amanhã (horas seguidas boas). Considera vento, rajadas, direção, chuva e ondas quando há dados. Toque num pico para abrir.</div>';
+    body.querySelectorAll("[data-id]").forEach(el => el.addEventListener("click", () => { cfg.spot = el.getAttribute("data-id"); window.scrollTo(0, 0); load(); }));
   } catch(e) {
     body.innerHTML = '<div class="muted">Não consegui comparar agora (' + esc(e.message) + ').</div><button id="btnCmp2" style="width:100%;margin-top:8px">Tentar de novo</button>';
     document.getElementById("btnCmp2").addEventListener("click", compareSpots);
