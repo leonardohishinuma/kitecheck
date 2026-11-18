@@ -144,6 +144,32 @@ dialog#dlg[open]{display:flex}
 .cmp-row .info b{color:var(--txt);font-size:14px}
 .when-chip{display:inline-flex;align-items:center;gap:6px;margin-bottom:6px;padding:5px 12px;border-radius:999px;background:var(--card2);border:1px solid var(--line);color:var(--txt);font-size:13px;font-weight:600;transition:all .2s}
 .when-chip.now{border-color:var(--acc);color:var(--acc);background:rgba(56,189,248,.12)}
+.nav button[data-view="pro"]{color:#facc15}
+.nav button[data-view="pro"].on{color:#1a1300;background:linear-gradient(135deg,#facc15,#f59e0b);border-color:transparent}
+.pro-tag{margin-left:8px;padding:2px 7px;border-radius:6px;font-size:10px;font-weight:800;letter-spacing:.5px;color:#1a1300;background:linear-gradient(135deg,#facc15,#f59e0b);border:0;vertical-align:middle;cursor:pointer;line-height:1.4}
+.pro-hero{text-align:center;padding:14px 6px 4px}
+.pro-badge{display:inline-block;padding:5px 12px;border-radius:999px;background:linear-gradient(135deg,#facc15,#f59e0b);color:#1a1300;font-weight:800;font-size:12px;letter-spacing:1px}
+.pro-hero h2{font-size:27px;line-height:1.15;margin:14px 0 8px;letter-spacing:-.5px}
+.pro-beta{margin:14px auto 0;max-width:440px;padding:10px 12px;border-radius:12px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.45);color:#bbf7d0;font-weight:600;font-size:14px}
+.pro-feats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0}
+.pro-feat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}
+.pro-feat .ic{font-size:22px}
+.pro-feat b{display:block;margin:6px 0 2px;font-size:14px}
+.pro-feat small{color:var(--mut);font-size:12px;line-height:1.35;display:block}
+.pro-plans{display:grid;gap:8px;margin-bottom:12px}
+.pro-plan{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.pro-plan.best{border-color:#f59e0b;box-shadow:inset 0 0 0 1px #f59e0b;background:linear-gradient(135deg,rgba(250,204,21,.12),rgba(245,158,11,.03))}
+.pro-plan .pp-n{font-weight:700}
+.pro-plan .pp-p{font-size:20px;font-weight:800;text-align:right;white-space:nowrap}
+.pro-plan small{display:block;color:var(--mut);font-size:12px;font-weight:500}
+.pp-tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:5px;font-size:10px;font-weight:800;background:#f59e0b;color:#1a1300;vertical-align:middle}
+.pro-cta{width:100%;padding:14px;font-weight:800;border:0;border-radius:14px;background:linear-gradient(135deg,#facc15,#f59e0b);color:#1a1300;font-size:16px}
+.pro-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.pro-tbl th,.pro-tbl td{padding:9px 6px;border-top:1px solid var(--line);text-align:center}
+.pro-tbl td:first-child,.pro-tbl th:first-child{text-align:left}
+.pro-tbl th{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-top:0}
+.pro-tbl td:last-child{color:#facc15;font-weight:700}
+.pro-note{text-align:center;margin:12px 4px}
 .warn{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
 </style>
 </head>
@@ -155,7 +181,7 @@ dialog#dlg[open]{display:flex}
     <button id="btnSettings" aria-label="Configurações">⚙︎</button>
   </div>
 </header>
-<nav class="nav" id="nav"><button class="on" data-view="prev">🪁 Previsão</button><button data-view="guia">📚 Guia de kites</button></nav>
+<nav class="nav" id="nav"><button class="on" data-view="prev">🪁 Previsão</button><button data-view="guia">📚 Guia</button><button data-view="pro">⭐ Pro</button></nav>
 <div id="viewPrev">
 
 <div class="card" style="padding:10px">
@@ -169,6 +195,7 @@ dialog#dlg[open]{display:flex}
 <div id="main"><div class="card hero"><span class="spin"></span> Carregando previsão…</div></div>
 </div>
 <div id="viewGuia" hidden></div>
+<div id="viewPro" hidden></div>
 
 <dialog id="dlg"></dialog>
 
@@ -428,14 +455,14 @@ function render(){
   // Equipamento
   if (r.cls !== "none" && ks) {
     const water = cur.sea && cur.sea.sst != null ? cur.sea.sst : cur.temp;
-    html += '<div class="card mini"><div class="mi-ic">🪁</div><div><div class="mi-t">Equipamento</div>' +
+    html += '<div class="card mini"><div class="mi-ic">🪁</div><div><div class="mi-t">Equipamento' + proTag() + '</div>' +
       '<div class="mi-v">' + (cur.kite ? 'Seu kite mais indicado: <b>' + cur.kite + ' m²</b>' : 'Tamanho estimado: <b>' + ks + ' m²</b>') + '</div>' +
       '<div class="muted">' + (cur.kite ? 'Estimativa pro seu peso: ' + ks + ' m²' : 'Cadastre seus kites em ⚙︎ pra uma sugestão com o seu equipamento') +
       (ksG && ksG < ks - 1 ? ' · nas rajadas, ' + ksG + ' m²' : '') + '. Roupa: ' + wetsuit(water) + '. É uma estimativa: confira os limites do fabricante.</div></div></div>';
   }
 
   // Melhor janela
-  html += '<div class="card mini"><div class="mi-ic">⏱️</div><div><div class="mi-t">Melhor janela</div>' +
+  html += '<div class="card mini"><div class="mi-ic">⏱️</div><div><div class="mi-t">Melhor janela' + proTag() + '</div>' +
     (win ? '<div class="mi-v"><b>' + fmtDay(win.start.date) + ' ' + fmtH(win.start.date) + '–' + fmtH(new Date(win.end.date.getTime() + 3600e3)) + '</b> (' + win.len + 'h)</div>' +
            '<div class="muted">Vento médio ' + win.avg + ' nós, rajadas até ' + win.maxGust + ' · melhor às ' + fmtH(win.peak.date) + '. Estimativa: as condições podem mudar rápido.</div>'
          : '<div class="mi-v">Sem janela boa hoje nem amanhã</div><div class="muted">Veja os próximos dias abaixo ou compare outros picos.</div>') +
@@ -458,7 +485,7 @@ function render(){
   }
 
   // Gráfico + próximas horas
-  html += '<div class="card"><h2>📈 Vento nas próximas 24h</h2>' + windChart(hours, idx) + '<div class="hours">';
+  html += '<div class="card"><h2>📈 Vento nas próximas 24h' + proTag() + '</h2>' + windChart(hours, idx) + '<div class="hours">';
   hours.slice(idx, idx + 24).forEach(h => {
     html += '<div class="h"><div class="muted">' + fmtH(h.date) + '</div><div class="kn">' + h.wind.toFixed(0) + '</div><div class="muted">' + h.gust.toFixed(0) + '</div>' +
       '<span class="arr" style="transform:rotate(' + (h.dir + 180) + 'deg)">↑</span><div class="bar" style="background:' + COLORS[h.r.cls] + '"></div></div>';
@@ -481,7 +508,7 @@ function render(){
       (w ? 'Janela: ' + fmtH(w.start.date) + '–' + fmtH(new Date(w.end.date.getTime() + 3600e3)) + ' (' + w.len + 'h)' : 'sem janela boa') + '</div>' +
       '<div class="pill" style="background:' + COLORS[shown.r.cls] + '">' + LABEL[shown.r.cls] + '</div></div>';
   });
-  html += '</div><div class="card" id="cmpCard"><h2>🏆 Melhor pico</h2><div id="cmpBody"><button class="primary" id="btnCmp" style="width:100%">Comparar todos os picos</button></div></div>' +
+  html += '</div><div class="card" id="cmpCard"><h2>🏆 Melhor pico' + proTag() + '</h2><div id="cmpBody"><button class="primary" id="btnCmp" style="width:100%">Comparar todos os picos</button></div></div>' +
     '<div class="warn">Previsão: Open-Meteo (modelos, não medições). O KiteCheck faz uma estimativa automática: sempre confira o mar no local e nunca veleje sozinho.</div>';
   $("#main").innerHTML = html;
   initSea(idx);
@@ -965,13 +992,57 @@ function saveSettings(){
 }
 $("#btnSettings").addEventListener("click", () => openSettings(false));
 
+// ---------- KiteCheck Pro (beta: tudo liberado, nada é cobrado) ----------
+function proTag(){ return '<button class="pro-tag" onclick="showView(\'pro\')" aria-label="Recurso Pro">PRO</button>'; }
+function renderProPage(){
+  const feats = [
+    ["📈","Previsões avançadas","Gráfico de vento e rajadas e a evolução ao longo do dia."],
+    ["🏆","Compare seus picos","Ache a melhor sessão entre todos os picos sem perder tempo."],
+    ["🔔","Alertas inteligentes","Aviso quando abrir uma janela boa no seu pico (em breve)."],
+    ["🪁","Seu equipamento","Análise feita pros kites que você realmente tem."]
+  ];
+  const rows = [
+    ["Vento, rajadas e direção agora","✓","✓"],
+    ["Alertas de segurança","✓","✓"],
+    ["Índice de condições","✓","✓"],
+    ["Guia de kites","✓","✓"],
+    ["Previsão por hora","Básica","Gráfico completo"],
+    ["Seção do mar","Básica","Completa"],
+    ["Comparação de picos","Básica","Avançada"],
+    ["Melhor janela de velejo","—","✓"],
+    ["Concordância entre modelos","—","✓"],
+    ["Seus kites na análise","Básico","Avançado"],
+    ["Alertas personalizados no celular","—","Em breve"],
+    ["Diário de sessões","—","Em breve"]
+  ];
+  $("#viewPro").innerHTML =
+    '<div class="pro-hero"><div class="pro-badge">⭐ KITECHECK PRO</div>' +
+    '<h2>Veleje mais.<br>Acerte mais suas sessões.</h2>' +
+    '<div class="muted">Previsão mais profunda, comparação de picos e alertas pra você não perder a próxima janela boa.</div>' +
+    '<div class="pro-beta">🎉 Durante o beta, o Pro está liberado de graça pra todo mundo.</div></div>' +
+    '<div class="pro-feats">' + feats.map(f => '<div class="pro-feat"><div class="ic">' + f[0] + '</div><b>' + f[1] + '</b><small>' + f[2] + '</small></div>').join("") + '</div>' +
+    '<div class="pro-plans">' +
+      '<div class="pro-plan"><div><div class="pp-n">Grátis</div><small>Pra quem quer saber quando e onde velejar</small></div><div class="pp-p">R$ 0</div></div>' +
+      '<div class="pro-plan"><div><div class="pp-n">Pro mensal</div><small>Flexível, cancele quando quiser</small></div><div class="pp-p">R$ 14,90<small>por mês</small></div></div>' +
+      '<div class="pro-plan best"><div><div class="pp-n">Pro anual<span class="pp-tag">MELHOR VALOR</span></div><small>≈ R$ 9,99 por mês · economize 33%</small></div><div class="pp-p">R$ 119,90<small>por ano</small></div></div>' +
+    '</div>' +
+    '<button class="pro-cta" id="proCta">Usar o Pro grátis no beta</button>' +
+    '<div class="muted pro-note">Assinatura ainda não disponível: os preços são de lançamento previstos e nada é cobrado durante o beta.</div>' +
+    '<div class="card"><table class="pro-tbl"><thead><tr><th>Recurso</th><th>Grátis</th><th>Pro</th></tr></thead><tbody>' +
+      rows.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td></tr>').join("") +
+    '</tbody></table></div>' +
+    '<div class="muted pro-note">🛟 Segurança nunca é paga: alertas de perigo, vento terral, tempestades, vento e rajadas continuam grátis pra sempre.</div>';
+  document.getElementById("proCta").addEventListener("click", () => showView("prev"));
+}
+
 // ---------- Navegação (Previsão / Guia) ----------
 var guideState = null;
 function showView(v){
   document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("on", b.dataset.view === v));
-  $("#viewPrev").hidden = v !== "prev"; $("#viewGuia").hidden = v !== "guia";
+  $("#viewPrev").hidden = v !== "prev"; $("#viewGuia").hidden = v !== "guia"; $("#viewPro").hidden = v !== "pro";
   if (v === "guia") renderGuidePage();
-  try { history.replaceState(null, "", v === "guia" ? "#guia" : location.pathname + location.search); } catch(e){}
+  if (v === "pro") renderProPage();
+  try { history.replaceState(null, "", (v === "guia" || v === "pro") ? "#" + v : location.pathname + location.search); } catch(e){}
   window.scrollTo(0, 0);
 }
 function renderGuidePage(){
@@ -986,7 +1057,7 @@ function renderGuidePage(){
   bindGuide(s => el.querySelector(s), guideState);
 }
 document.querySelectorAll("#nav button").forEach(b => b.addEventListener("click", () => showView(b.dataset.view)));
-if (location.hash === "#guia") showView("guia");
+if (location.hash === "#guia" || location.hash === "#pro") showView(location.hash.slice(1));
 
 // Atualiza ao voltar pro app
 document.addEventListener("visibilitychange", () => { if (!document.hidden && lastData) load(); });
