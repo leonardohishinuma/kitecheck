@@ -643,7 +643,7 @@ function windowCardHTML(hours, idx, spot, win){
       else if (bad && bad.r.alerts && bad.r.alerts.length) why = "Tem vento, mas com risco às " + fmtH(bad.date) + ": " + bad.r.alerts[0].t.replace(/^\S+\s/, "");
       else why = "Tem vento em alguns horários, mas não fica bom por horas seguidas: rajadas, direção ou chuva atrapalham.";
       h += '<div class="wwhy">' + esc(why) + '</div>' + strip(day);
-      h += '<div class="muted" style="margin-top:6px">Melhor hora ' + (fmtDay(best.date) === "Hoje" ? "de hoje" : "de " + dayLong(best.date).toLowerCase()) + ': <b>' + fmtH(best.date) + '</b> · ' +
+      if (peak.wind >= cfg.min) h += '<div class="muted" style="margin-top:6px">Melhor hora ' + (fmtDay(best.date) === "Hoje" ? "de hoje" : "de " + dayLong(best.date).toLowerCase()) + ': <b>' + fmtH(best.date) + '</b> · ' +
         Math.round(best.wind) + ' nós, rajadas ' + Math.round(best.gust) + ' (' + LABEL[best.r.cls].toLowerCase() + ').</div>';
     }
     let next = null;
