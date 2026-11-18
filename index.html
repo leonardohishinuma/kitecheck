@@ -156,6 +156,7 @@ dialog#dlg[open]{display:flex}
 .pro-feat .ic{font-size:22px}
 .pro-feat b{display:block;margin:6px 0 2px;font-size:14px}
 .pro-feat small{color:var(--mut);font-size:12px;line-height:1.35;display:block}
+.pro-founder{margin:0 0 10px;padding:11px 12px;border-radius:12px;background:linear-gradient(135deg,rgba(250,204,21,.14),rgba(245,158,11,.05));border:1px dashed #f59e0b;color:#fde68a;font-size:14px;text-align:center;line-height:1.4}
 .pro-plans{display:grid;gap:8px;margin-bottom:12px}
 .pro-plan{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
 .pro-plan.best{border-color:#f59e0b;box-shadow:inset 0 0 0 1px #f59e0b;background:linear-gradient(135deg,rgba(250,204,21,.12),rgba(245,158,11,.03))}
@@ -1021,10 +1022,11 @@ function renderProPage(){
     '<div class="muted">Previsão mais profunda, comparação de picos e alertas pra você não perder a próxima janela boa.</div>' +
     '<div class="pro-beta">🎉 Durante o beta, o Pro está liberado de graça pra todo mundo.</div></div>' +
     '<div class="pro-feats">' + feats.map(f => '<div class="pro-feat"><div class="ic">' + f[0] + '</div><b>' + f[1] + '</b><small>' + f[2] + '</small></div>').join("") + '</div>' +
+    '<div class="pro-founder">🚀 <b>Preço de fundador:</b> os primeiros 100 assinantes vão pagar <b>R$ 14,90/mês</b> enquanto mantiverem a assinatura.</div>' +
     '<div class="pro-plans">' +
       '<div class="pro-plan"><div><div class="pp-n">Grátis</div><small>Pra quem quer saber quando e onde velejar</small></div><div class="pp-p">R$ 0</div></div>' +
       '<div class="pro-plan"><div><div class="pp-n">Pro mensal</div><small>Flexível, cancele quando quiser</small></div><div class="pp-p">R$ 24,90<small>por mês</small></div></div>' +
-      '<div class="pro-plan best"><div><div class="pp-n">Pro anual<span class="pp-tag">MELHOR VALOR</span></div><small>≈ R$ 20,83 por mês · economize 16%</small></div><div class="pp-p">R$ 250<small>por ano</small></div></div>' +
+      '<div class="pro-plan best"><div><div class="pp-n">Pro anual<span class="pp-tag">MELHOR VALOR</span></div><small>≈ R$ 16,58 por mês · economize 33%</small></div><div class="pp-p">R$ 199<small>por ano</small></div></div>' +
     '</div>' +
     '<button class="pro-cta" id="proCta">Usar o Pro grátis no beta</button>' +
     '<div class="muted pro-note">Assinatura ainda não disponível: os preços são de lançamento previstos e nada é cobrado durante o beta.</div>' +
