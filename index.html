@@ -141,7 +141,11 @@ const DEFAULT_SPOTS = [
   {id:"cabofrio",name:"Cabo Frio (Praia do Forte) – RJ", lat:-22.8890, lon:-42.0150, sea:135},
   {id:"buzios", name:"Búzios (Praia Rasa) – RJ",   lat:-22.7330, lon:-41.9580, sea:90},
   {id:"cumbuco",name:"Cumbuco – CE",               lat:-3.6270,  lon:-38.7290, sea:45},
-  {id:"jeri",   name:"Jericoacoara – CE",          lat:-2.7950,  lon:-40.5130, sea:0}
+  {id:"jeri",   name:"Jericoacoara – CE",          lat:-2.7950,  lon:-40.5130, sea:0},
+  {id:"siqueira",name:"Lagoa de Araruama (Siqueira) – RJ", lat:-22.8740, lon:-42.0440, sea:315, lagoon:true},
+  {id:"spa",    name:"São Pedro da Aldeia (Lagoa) – RJ", lat:-22.8420, lon:-42.1030, sea:180, lagoon:true},
+  {id:"prea",   name:"Preá – CE",                  lat:-2.8160,  lon:-40.4180, sea:0},
+  {id:"taiba",  name:"Taíba – CE",                 lat:-3.5070,  lon:-38.9060, sea:45}
 ];
 const LEVELS = {
   iniciante:    {max:20, gustDelta:8,  wave:1.0},
@@ -157,7 +161,10 @@ const store = {
   get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 };
-let spots = store.get("kc_spots", DEFAULT_SPOTS);
+let spots = store.get("kc_spots", DEFAULT_SPOTS.slice());
+(function(){ const del = store.get("kc_deleted", []);
+  DEFAULT_SPOTS.forEach(d => { const s = spots.find(x => x.id === d.id);
+    if (!s && del.indexOf(d.id) < 0) spots.push(d); else if (s && d.lagoon) s.lagoon = true; }); })();
 let cfg = Object.assign({weight:75, level:"intermediario", min:12, spot:"pepe"}, store.get("kc_cfg", {}));
 let lastData = null;
 
@@ -197,6 +204,7 @@ function rate(h, spot){
   if (a <= 25)        { score -= 15; reasons.push(`↘️ Vento ${dn} onshore (de frente pro mar): seguro, mas difícil de sair.`); }
   else if (a <= 100)  { reasons.push(`✅ Direção ${dn} lateral (side/side-on): ideal.`); }
   else if (a <= 135)  { score -= 35; reasons.push(`⚠️ Direção ${dn} side-off: vento saindo da terra, cuidado.`); }
+  else if (w >= cfg.min - 3 && spot.lagoon) { score -= 30; reasons.push("⚠️ Vento " + dn + " saindo da margem: na lagoa é menos crítico, mas não se afaste."); }
   else if (w >= cfg.min - 3) { danger = true; reasons.push(`🚫 Vento ${dn} OFFSHORE (vem da terra): te leva pro alto-mar.`); }
   else                { score -= 30; reasons.push(`↖️ Vento ${dn} offshore (vem da terra) — fraco agora, mas fique atento.`); }
 
@@ -205,10 +213,13 @@ function rate(h, spot){
   else if (h.rain >= 40) { score -= 8;  reasons.push(`🌦️ Chance de chuva ${h.rain}%.`); }
 
   // Ondas
-  if (h.wave != null) {
+  if (h.wave != null && !spot.lagoon) {
     if (h.wave > L.wave + 1)   { score -= 30; reasons.push(`🌊 Mar grande (${h.wave.toFixed(1)} m) para o seu nível.`); }
     else if (h.wave > L.wave)  { score -= 12; reasons.push(`🌊 Ondas de ${h.wave.toFixed(1)} m.`); }
   }
+
+  // Concordância entre modelos de previsão
+  if (h.conf === "baixa" && w >= cfg.min - 3) { score -= 8; reasons.push("🤔 Os modelos de previsão discordam (" + h.spread.toFixed(0) + " nós de diferença) — previsão incerta."); }
 
   score = Math.max(0, Math.min(100, Math.round(score)));
   if (danger) score = Math.min(score, 15);
@@ -238,13 +249,23 @@ async function load(){
   $("#main").innerHTML = `<div class="card hero"><span class="spin"></span> Carregando previsão…</div>`;
 
   const base = `latitude=${spot.lat}&longitude=${spot.lon}&timezone=auto&forecast_days=7`;
-  const wUrl = `https://api.open-meteo.com/v1/forecast?${base}&hourly=temperature_2m,precipitation_probability,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day&wind_speed_unit=kn`;
+  const wUrl = `https://api.open-meteo.com/v1/forecast?${base}&hourly=temperature_2m,precipitation_probability,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day&daily=sunrise,sunset,uv_index_max&wind_speed_unit=kn`;
+  const eUrl = "https://api.open-meteo.com/v1/forecast?" + base + "&hourly=wind_speed_10m&models=ecmwf_ifs025,gfs_seamless,icon_seamless&wind_speed_unit=kn";
   const mUrl = `https://marine-api.open-meteo.com/v1/marine?${base}&hourly=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_period,swell_wave_direction,wind_wave_height,sea_surface_temperature,sea_level_height_msl`;
   try{
-    const [wr, mr] = await Promise.all([
+    let wr, mr, er, cachedAt = null;
+    try {
+    [wr, mr, er] = await Promise.all([
       fetch(wUrl).then(r => { if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); }),
-      fetch(mUrl).then(r => r.ok ? r.json() : null).catch(() => null)
+      fetch(mUrl).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(eUrl).then(r => r.ok ? r.json() : null).catch(() => null)
     ]);
+    store.set("kc_last", {id:spot.id, ts:Date.now(), wr:wr, mr:mr, er:er});
+    } catch (netErr) {
+      const c = store.get("kc_last", null);
+      if (!c || c.id !== spot.id) throw netErr;
+      wr = c.wr; mr = c.mr; er = c.er; cachedAt = c.ts;
+    }
     const H = wr.hourly, waves = {};
     if (mr && mr.hourly) { const M = mr.hourly, g = (k,i) => (M[k] ? M[k][i] : null);
       M.time.forEach((t,i) => waves[t] = {wh:g("wave_height",i), wd:g("wave_direction",i), wp:g("wave_period",i), sh:g("swell_wave_height",i), sp:g("swell_wave_period",i), sd:g("swell_wave_direction",i), ww:g("wind_wave_height",i), sst:g("sea_surface_temperature",i), tide:g("sea_level_height_msl",i)}); }
@@ -253,8 +274,21 @@ async function load(){
       temp:H.temperature_2m[i], rain:H.precipitation_probability[i] ?? 0, code:H.weather_code[i] ?? 0,
       isDay:H.is_day[i] === 1, sea: waves[t] || null, wave: (waves[t] && waves[t].wh != null) ? waves[t].wh : null
     }));
+    // Confiança: diferença de vento entre os modelos
+    let nModels = 0;
+    if (er && er.hourly) {
+      const keys = Object.keys(er.hourly).filter(k => k.indexOf("wind_speed_10m_") === 0); nModels = keys.length;
+      const idxOf = {}; er.hourly.time.forEach((t,i) => idxOf[t] = i);
+      hours.forEach(h => { const i = idxOf[h.t]; if (i == null) return;
+        const v = keys.map(k => er.hourly[k][i]).filter(x => x != null);
+        if (v.length < 2) return;
+        h.spread = Math.max(...v) - Math.min(...v);
+        h.conf = h.spread <= 4 ? "alta" : h.spread <= 8 ? "média" : "baixa"; });
+    }
     hours.forEach(h => h.r = rate(h, spot));
-    lastData = {spot, hours, utcOffset: wr.utc_offset_seconds};
+    const sun = {};
+    if (wr.daily && wr.daily.time) wr.daily.time.forEach((d,i) => sun[d] = {rise:(wr.daily.sunrise[i]||"").slice(11,16), set:(wr.daily.sunset[i]||"").slice(11,16), uv: wr.daily.uv_index_max ? wr.daily.uv_index_max[i] : null});
+    lastData = {spot, hours, utcOffset: wr.utc_offset_seconds, sun, nModels, cachedAt};
     store.set("kc_cache_"+spot.id, {saved:Date.now()});
     render();
   }catch(e){
@@ -272,6 +306,7 @@ function render(){
   const {spot, hours, utcOffset} = lastData;
   const nk = nowKey(utcOffset);
   let idx = hours.findIndex(h => h.t === nk); if (idx < 0) idx = 0;
+  lastData.idx = idx;
   const cur = hours[idx];
   const r = cur.r;
   const ks = kiteSize(cur.wind);
@@ -301,12 +336,13 @@ function render(){
       <div class="stat"><b>${cur.wave!=null?cur.wave.toFixed(1)+" m":"–"}</b><small>ondas</small></div>
     </div>
     <ul class="reasons">${r.reasons.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
-    ${ks && r.cls!=="none" ? `<div class="kite">🪁 Kite sugerido: <b>${ks} m²</b> · Roupa: <b>${wetsuit(cur.temp)}</b></div>` : ""}
+    ${ks && r.cls!=="none" ? `<div class="kite">🪁 Kite sugerido: <b>${ks} m²</b>${kiteSize(cur.gust) && kiteSize(cur.gust) < ks - 1 ? " (nas rajadas, " + kiteSize(cur.gust) + " m²)" : ""} · Roupa: <b>${wetsuit(cur.sea && cur.sea.sst != null ? cur.sea.sst : cur.temp)}</b></div>` : ""}
     <div class="kite">${nextTxt}</div>
+    ${heroExtra()}
   </div>`;
 
   // Mar (onda animada + rolagem pelas horas)
-  if (hours.some(h => h.sea && h.sea.wh != null)) {
+  if (!spot.lagoon && hours.some(h => h.sea && h.sea.wh != null)) {
     html += `<div class="card" id="seaCard"><h2>🌊 Mar</h2>
       <div class="seahead"><div><div class="muted" id="seaWhen"></div><div class="wh" id="seaH">–</div></div>
       <div style="text-align:right"><div class="sstate" id="seaState"></div><div class="muted" id="seaDir"></div></div></div>
@@ -351,9 +387,52 @@ function render(){
       <div class="pill" style="background:${COLORS[best.r.cls]}">${LABEL[best.r.cls]}</div>
     </div>`;
   });
-  html += `</div><div class="warn">Previsão: Open-Meteo. Use como referência — sempre confira o mar no local e nunca veleje sozinho.</div>`;
+  html += `</div><div class="card" id="cmpCard"><h2>🏆 Melhor pico</h2><div id="cmpBody"><button class="primary" id="btnCmp" style="width:100%">Comparar todos os picos</button></div></div><div class="warn">Previsão: Open-Meteo. Use como referência — sempre confira o mar no local e nunca veleje sozinho.</div>`;
   $("#main").innerHTML = html;
   initSea(idx);
+  const bc = document.getElementById("btnCmp"); if (bc) bc.addEventListener("click", compareSpots);
+}
+
+function heroExtra(){
+  const d = lastData, out = [], cur = d.hours[d.idx];
+  const s = d.sun && d.sun[cur.t.slice(0,10)];
+  if (s && s.rise) out.push("☀️ Sol " + s.rise + "–" + s.set + (s.uv != null ? " · UV máx " + s.uv.toFixed(0) + (s.uv >= 8 ? " (passe protetor!)" : "") : ""));
+  if (cur.conf) out.push("📊 Confiança da previsão: <b>" + cur.conf + "</b> (" + d.nModels + " modelos comparados)");
+  if (d.cachedAt) out.push("📴 Sem internet — mostrando previsão salva de " + new Date(d.cachedAt).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}));
+  return out.map(x => '<div class="kite">' + x + '</div>').join("");
+}
+
+async function compareSpots(){
+  const body = document.getElementById("cmpBody"); if (!body) return;
+  body.innerHTML = '<span class="spin"></span> Comparando ' + spots.length + ' picos…';
+  const url = "https://api.open-meteo.com/v1/forecast?latitude=" + spots.map(s => s.lat).join(",") + "&longitude=" + spots.map(s => s.lon).join(",") +
+    "&hourly=precipitation_probability,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day&wind_speed_unit=kn&timezone=auto&forecast_days=2";
+  try {
+    let res = await fetch(url).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+    if (!Array.isArray(res)) res = [res];
+    const rows = spots.map((s, k) => {
+      const H = res[k].hourly, nk = nowKey(res[k].utc_offset_seconds || 0), out = {};
+      H.time.forEach((t,i) => {
+        if (t < nk) return;
+        const h = {t, date:new Date(t), wind:H.wind_speed_10m[i] ?? 0, gust:H.wind_gusts_10m[i] ?? 0, dir:H.wind_direction_10m[i] ?? 0,
+          rain:H.precipitation_probability[i] ?? 0, code:H.weather_code[i] ?? 0, isDay:H.is_day[i] === 1, wave:null};
+        h.r = rate(h, s);
+        const day = t.slice(0,10);
+        if (h.isDay && (!out[day] || h.r.score > out[day].r.score)) out[day] = h;
+      });
+      return {s, days: Object.keys(out).sort().map(d => out[d])};
+    }).filter(r => r.days.length);
+    const best = r => Math.max(...r.days.map(h => h.r.cls === "danger" ? 0 : h.r.score));
+    rows.sort((a,b) => best(b) - best(a));
+    body.innerHTML = rows.map(row => '<div class="day" data-id="' + esc(row.s.id) + '" style="cursor:pointer"><div class="info"><b>' + esc(row.s.name) + '</b><br>' +
+        row.days.map(h => fmtDay(h.date) + ": " + h.wind.toFixed(0) + " nós " + dirName(h.dir) + " às " + fmtH(h.date)).join("<br>") + '</div>' +
+        '<div>' + row.days.map(h => '<div class="pill" style="margin:2px 0;background:' + COLORS[h.r.cls] + '">' + LABEL[h.r.cls] + '</div>').join("") + '</div></div>').join("") +
+      '<div class="muted" style="margin-top:6px">Melhor horário de hoje e de amanhã em cada pico (só vento e tempo, sem ondas). Toque num pico para abrir.</div>';
+    body.querySelectorAll("[data-id]").forEach(el => el.addEventListener("click", () => { cfg.spot = el.getAttribute("data-id"); window.scrollTo(0,0); load(); }));
+  } catch(e) {
+    body.innerHTML = '<div class="muted">Não consegui comparar agora (' + esc(e.message) + ').</div><button id="btnCmp2" style="width:100%;margin-top:8px">Tentar de novo</button>';
+    document.getElementById("btnCmp2").addEventListener("click", compareSpots);
+  }
 }
 
 // ---------- Mar: onda animada estilo "coroa do Apple Watch" ----------
@@ -517,6 +596,7 @@ $("#cfgSave").addEventListener("click", () => {
 });
 $("#cfgDelete").addEventListener("click", () => {
   if (spots.length <= 1) return;
+  const del = store.get("kc_deleted", []); del.push(cfg.spot); store.set("kc_deleted", del);
   spots = spots.filter(s => s.id !== cfg.spot);
   cfg.spot = spots[0].id;
   store.set("kc_spots", spots); store.set("kc_cfg", cfg);
