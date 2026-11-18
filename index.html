@@ -972,7 +972,7 @@ function initSea(start){
   const cv = document.getElementById("waveCv"), sc = document.getElementById("seaScrub");
   if (!cv || !sc || !cv.getContext || !lastData) return;
   const hours = lastData.hours, ctx = cv.getContext("2d"), tcv = document.getElementById("tideCv");
-  let sel = start, shownH = 0, shownP = 8, shownW = 0, phase = 0, last = performance.now();
+  let sel = start, shownH = 0, shownP = 8, shownW = 0, phase = 0, last = performance.now(), tideW = -1;
 
   function fit(c){ const r = c.getBoundingClientRect(), d = window.devicePixelRatio || 1;
     if (c.width !== Math.round(r.width*d)) { c.width = Math.round(r.width*d); c.height = Math.round(r.height*d); }
@@ -998,7 +998,7 @@ function initSea(start){
   }
 
   function drawTide(){
-    if (!tcv) return; const [W,H] = fit(tcv), c = tcv.getContext("2d"); c.clearRect(0,0,W,H);
+    if (!tcv) return; const [W,H] = fit(tcv), c = tcv.getContext("2d"); c.clearRect(0,0,W,H); tideW = W;
     const a = Math.max(0, sel-12), b = Math.min(hours.length-1, sel+12), pts = [];
     for (let i=a;i<=b;i++) if (hours[i].sea && hours[i].sea.tide != null) pts.push([i, hours[i].sea.tide]);
     if (pts.length < 3) return;
@@ -1017,6 +1017,7 @@ function initSea(start){
     const s = hours[sel].sea || {}, tH = s.wh || 0, tP = s.wp || 8, tW = s.ww || 0;
     shownH += (tH-shownH)*Math.min(1, dt*5); shownP += (tP-shownP)*Math.min(1, dt*5); shownW += (tW-shownW)*Math.min(1, dt*5);
     const [W,H] = fit(cv); ctx.clearRect(0,0,W,H);
+    if (tcv && Math.round(tcv.getBoundingClientRect().width) !== Math.round(tideW)) drawTide();   // redesenha a maré se a tela mudou de tamanho ou ficou visível
     const sky = ctx.createLinearGradient(0,0,0,H); sky.addColorStop(0,"#0b3b5c"); sky.addColorStop(1,"#062a42");
     ctx.fillStyle = sky; ctx.fillRect(0,0,W,H);
     const pxM = H*0.16, base = H*0.62;              // 1 metro = 16% da altura
