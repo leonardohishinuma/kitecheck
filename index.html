@@ -190,6 +190,12 @@ dialog#dlg[open]{display:flex}
 .wst small{color:var(--mut);font-size:11px}
 .wwhy{font-size:14px;margin:4px 0 2px;line-height:1.4}
 .wnext{margin-top:10px;padding:9px 11px;border-radius:10px;background:var(--card2);font-size:14px}
+.wc-wrap{position:relative}
+.wchart{touch-action:pan-y;cursor:crosshair}
+.wc-tip{display:none;position:absolute;top:-6px;padding:6px 10px;border-radius:9px;background:rgba(4,30,48,.96);border:1px solid var(--line);font-size:12px;line-height:1.4;pointer-events:none;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.35);z-index:2}
+.wc-tip b{font-size:15px}
+.wc-tip span{color:var(--mut)}
+.wc-tip i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}
 .warn{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
 </style>
 </head>
@@ -534,6 +540,7 @@ function render(){
     '<div class="warn">Previsão: Open-Meteo (modelos, não medições). O KiteCheck faz uma estimativa automática: sempre confira o mar no local e nunca veleje sozinho.</div>';
   $("#main").innerHTML = html;
   initSea(idx);
+  initWindChart();
   const bc = document.getElementById("btnCmp"); if (bc) bc.addEventListener("click", compareSpots);
   const br = document.getElementById("btnRetry"); if (br) br.addEventListener("click", load);
   renderWhere();
@@ -581,12 +588,40 @@ function statusHTML(){
   return '<div class="upd">🔄 Atualizado às ' + new Date(d.fetchedAt || Date.now()).toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"}) + '</div>';
 }
 
+// ---------- Gráfico de vento: valores ao passar o dedo/mouse ----------
+var wcData = null;
+function initWindChart(){
+  const svg = document.querySelector(".wchart"), tip = document.getElementById("wcTip"), g = document.getElementById("wcHover");
+  if (!svg || !tip || !g || !wcData) return;
+  const d = wcData, ln = document.getElementById("wcL"), cw = document.getElementById("wcW"), cg = document.getElementById("wcG");
+  const show = clientX => {
+    const r = svg.getBoundingClientRect(); if (!r.width) return;
+    const vx = (clientX - r.left) / r.width * d.W;
+    let i = Math.round((vx - d.X(0)) / (d.X(1) - d.X(0))); i = Math.max(0, Math.min(d.list.length - 1, i));
+    const h = d.list[i], x = d.X(i);
+    g.style.display = "";
+    ln.setAttribute("x1", x); ln.setAttribute("x2", x);
+    cw.setAttribute("cx", x); cw.setAttribute("cy", d.Y(h.wind)); cg.setAttribute("cx", x); cg.setAttribute("cy", d.Y(h.gust));
+    tip.innerHTML = '<b>' + h.wind.toFixed(0) + ' nós</b> · rajada ' + h.gust.toFixed(0) + '<br><span>' + dayLong(h.date) + ', ' + fmtH(h.date) + ' · de ' + dirName(h.dir) + '</span><br>' +
+      '<i style="background:' + COLORS[h.r.cls] + '"></i>' + LABEL[h.r.cls];
+    tip.style.display = "block";
+    const px = x / d.W * r.width, tw = tip.offsetWidth;
+    tip.style.left = Math.max(0, Math.min(r.width - tw, px - tw / 2)) + "px";
+  };
+  const hide = () => { g.style.display = "none"; tip.style.display = "none"; };
+  svg.addEventListener("pointermove", e => show(e.clientX));
+  svg.addEventListener("pointerdown", e => show(e.clientX));
+  svg.addEventListener("pointerleave", e => { if (e.pointerType === "mouse") hide(); });
+  svg.addEventListener("touchmove", e => { if (e.touches[0]) show(e.touches[0].clientX); }, {passive: true});
+}
+
 function windChart(hours, idx){
   const list = hours.slice(idx, idx + 25); if (list.length < 2) return "";
   const L = LEVELS[cfg.level], W = 340, H = 170, pl = 26, pr = 6, pt = 10, pb = 22;
   const top = Math.max(L.max + 5, Math.ceil(Math.max(...list.map(h => h.gust)) / 5) * 5 + 5);
   const X = i => pl + i * (W - pl - pr) / (list.length - 1), Y = v => pt + (1 - v / top) * (H - pt - pb);
   const f = n => n.toFixed(1);
+  wcData = {list, X, Y, W, H};
   let s = '<svg class="wchart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Gráfico de vento e rajadas">';
   list.forEach((h, i) => { if (i < list.length - 1) {
     if (!h.isDay) s += '<rect x="' + f(X(i)) + '" y="' + pt + '" width="' + f(X(i + 1) - X(i)) + '" height="' + (H - pt - pb) + '" fill="rgba(0,0,0,.28)"/>';
@@ -599,7 +634,9 @@ function windChart(hours, idx){
   s += '<polyline points="' + list.map((h, i) => f(X(i)) + ',' + f(Y(h.gust))).join(' ') + '" fill="none" stroke="#f97316" stroke-width="1.5" stroke-dasharray="3 2"/>';
   s += '<polyline points="' + list.map((h, i) => f(X(i)) + ',' + f(Y(h.wind))).join(' ') + '" fill="none" stroke="#38bdf8" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>';
   list.forEach((h, i) => { if (i % 3 === 0) s += '<text x="' + f(X(i)) + '" y="' + (H - 6) + '" text-anchor="middle" class="wc-t">' + fmtH(h.date) + '</text>'; });
-  return s + '</svg><div class="wc-leg"><span><i style="background:#38bdf8"></i>vento médio</span><span><i style="background:#f97316"></i>rajadas</span>' +
+  s += '<g id="wcHover" style="display:none"><line id="wcL" y1="' + pt + '" y2="' + (H - pb) + '" stroke="#e8f4fb" stroke-dasharray="2 3" stroke-width="1"/>' +
+    '<circle id="wcG" r="3.5" fill="#f97316"/><circle id="wcW" r="4.5" fill="#38bdf8" stroke="#fff" stroke-width="1.5"/></g>';
+  return '<div class="wc-wrap">' + s + '</svg><div class="wc-tip" id="wcTip"></div></div><div class="wc-leg"><span><i style="background:#38bdf8"></i>vento médio</span><span><i style="background:#f97316"></i>rajadas</span>' +
     '<span><i style="background:#facc15"></i>seu mínimo (' + cfg.min + ' nós)</span><span><i style="background:rgba(34,197,94,.55)"></i>horas boas</span><span><i style="background:rgba(0,0,0,.5)"></i>noite</span></div>';
 }
 
