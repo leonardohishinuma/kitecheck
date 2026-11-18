@@ -1677,10 +1677,7 @@ function showAuth(screen){
   let h = '<div class="au-box">';
   if (!screen || screen === "home") {
     h += '<div class="au-logo">🪁</div><div class="au-t">Kite<span>Check</span></div><p class="au-s">O vento certo, na hora certa.<br>Entra pra montar teu perfil de velejador.</p>' +
-      '<button class="au-btn au-apple" data-p="apple">' + AU_ICON.apple + 'Continuar com Apple</button>' +
-      '<button class="au-btn au-google" data-p="google">' + AU_ICON.google + 'Continuar com Google</button>' +
-      '<div class="au-or">ou</div>' +
-      '<button class="au-btn au-mail" data-go="signup">' + AU_ICON.mail + 'Criar conta com e-mail</button>' +
+      '<button class="au-btn primary" data-go="signup">' + AU_ICON.mail + 'Criar conta com e-mail</button>' +
       '<button class="au-link" data-go="login">Já tenho conta · Entrar</button>';
   } else if (screen === "apple" || screen === "google") {
     h += '<button class="au-back" data-go="home">‹ Voltar</button>' +
