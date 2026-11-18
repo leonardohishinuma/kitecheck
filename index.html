@@ -255,6 +255,25 @@ input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;bac
 .au-prov svg{width:26px;height:26px}
 .acct{display:flex;align-items:center;gap:12px}
 .acct-av{width:44px;height:44px;border-radius:50%;background:var(--acc);color:#04223a;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:19px;flex:none}
+.wc-tip .tl{display:flex;align-items:center;gap:6px;margin-top:3px}
+.wc-tip .tl i{width:9px;height:9px;border-radius:50%;margin:0}
+.wc-tip .tl b{font-size:13px}
+.kq-list{display:grid;gap:8px;margin-bottom:10px}
+.kq-item{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.kq-sz{font-weight:800;font-size:18px;color:var(--acc);min-width:52px}
+.kq-nm{flex:1;min-width:0}
+.kq-nm small{display:block;color:var(--mut);font-size:12px}
+.kq-del{width:34px;height:34px;padding:0;border-radius:50%;flex:none;font-size:13px}
+.kq-add{background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:12px}
+.kq-add label{display:block;font-size:12px;color:var(--mut);margin:8px 0 4px 2px}
+.kq-add label:first-child{margin-top:0}
+.kq-sug{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.kq-sug:empty{display:none}
+.kq-sug button{padding:7px 11px;font-size:14px;border-radius:999px;background:rgba(56,189,248,.14);border-color:rgba(56,189,248,.45)}
+.kq-sug button b{color:var(--acc)}
+.kq-sizes{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.kq-sizes button{padding:9px 0;font-weight:700;background:var(--card2)}
+.kq-sizes button.on{border-color:var(--acc);background:rgba(56,189,248,.25);box-shadow:inset 0 0 0 1px var(--acc)}
 .warn{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
 </style>
 </head>
@@ -332,7 +351,8 @@ let spots = store.get("kc_spots", DEFAULT_SPOTS.slice());
   DEFAULT_SPOTS.forEach(d => { const s = spots.find(x => x.id === d.id);
     if (!s && del.indexOf(d.id) < 0) spots.push(d); }); })();
 let cfg = Object.assign({weight:75, level:"intermediario", min:12, spot:"k7", kites:[], favs:[], plan:"pro_m"}, store.get("kc_cfg", {}));
-if (!store.get("kc_cfg", null)) cfg.onboarded = false;   // primeira vez abrindo o app
+if (!store.get("kc_cfg", null)) cfg.onboarded = false;
+if (!cfg.quiver) cfg.quiver = (cfg.kites || []).map(s => ({brand: "", model: "", size: s}));   // primeira vez abrindo o app
 // Pico principal agora é o K7 (Barra da Tijuca): troca o antigo Pepê por ele
 (function(){
   if (spots.some(s => s.id === "pepe")) {
@@ -379,7 +399,7 @@ function rate(h, spot){
     h.kite = k;
     if (k < ideal * 0.78) { score -= Math.min(45, Math.round((ideal * 0.78 - k) * 8) + 10); reasons.push("🪁 Com seus kites fica fraco: o melhor seria o de " + k + " m², mas o ideal é ~" + Math.round(ideal) + " m²."); }
     else if (k > idealG * 1.35) { score -= 35; reasons.push((k > idealG * 1.7 ? "🚫" : "⚠️") + " Com seus kites fica forte demais nas rajadas: o de " + k + " m² passa do ideal (~" + Math.round(idealG) + " m²)."); if (k > idealG * 1.7) danger = true; }
-    else reasons.push("🪁 Vá de " + k + " m².");
+    else reasons.push("🪁 Vá de " + kiteName(k) + ".");
   }
 
   // Rajadas
@@ -583,7 +603,7 @@ function render(){
   if (r.cls !== "none" && ks) {
     const water = cur.sea && cur.sea.sst != null ? cur.sea.sst : cur.temp;
     html += '<div class="card mini"><div class="mi-ic">🪁</div><div><div class="mi-t">Equipamento' + proTag() + '</div>' +
-      '<div class="mi-v">' + ((isPro() && cur.kite) ? 'Seu kite mais indicado: <b>' + cur.kite + ' m²</b>' : 'Tamanho estimado: <b>' + ks + ' m²</b>') + '</div>' +
+      '<div class="mi-v">' + ((isPro() && cur.kite) ? 'Seu kite mais indicado: <b>' + esc(kiteName(cur.kite)) + '</b>' : 'Tamanho estimado: <b>' + ks + ' m²</b>') + '</div>' +
       '<div class="muted">' + ((isPro() && cur.kite) ? 'Estimativa pro seu peso: ' + ks + ' m²' : 'Cadastre seus kites em ⚙︎ pra uma sugestão com o seu equipamento') +
       (ksG && ksG < ks - 1 ? ' · nas rajadas, ' + ksG + ' m²' : '') + '. Roupa: ' + wetsuit(water) + '. É uma estimativa: confira os limites do fabricante.</div></div></div>';
   }
@@ -683,8 +703,10 @@ function initWindChart(){
     g.style.display = "";
     ln.setAttribute("x1", x); ln.setAttribute("x2", x);
     cw.setAttribute("cx", x); cw.setAttribute("cy", d.Y(h.wind)); cg.setAttribute("cx", x); cg.setAttribute("cy", d.Y(h.gust));
-    tip.innerHTML = '<b>' + h.wind.toFixed(0) + ' nós</b> · rajada ' + h.gust.toFixed(0) + '<br><span>' + dayLong(h.date) + ', ' + fmtH(h.date) + ' · de ' + dirName(h.dir) + '</span><br>' +
-      '<i style="background:' + COLORS[h.r.cls] + '"></i>' + LABEL[h.r.cls];
+    tip.innerHTML = '<span>' + dayLong(h.date) + ', ' + fmtH(h.date) + ' · de ' + dirName(h.dir) + '</span>' +
+      '<div class="tl"><i style="background:#38bdf8"></i>Vento <b>' + h.wind.toFixed(0) + ' nós</b></div>' +
+      '<div class="tl"><i style="background:#f97316"></i>Rajada <b>' + h.gust.toFixed(0) + ' nós</b></div>' +
+      '<div class="tl"><i style="background:' + COLORS[h.r.cls] + ';border-radius:2px"></i>' + LABEL[h.r.cls] + (h.kite && isPro() ? ' · 🪁 ' + h.kite + ' m²' : '') + '</div>';
     tip.style.display = "block";
     updateCompass(h, i === 0);
     const px = x / d.W * r.width, tw = tip.offsetWidth;
@@ -1172,6 +1194,40 @@ $("#btnGps").addEventListener("click", () => {
 function alertBox(msg){ $("#spotInfo").textContent = msg; }
 
 // ---------- Ajustes ----------
+// ---------- Kites: marcas e modelos (pra sugerir enquanto digita) ----------
+var KITE_DB = {
+  "Duotone": ["Evo","Evo SLS","Evo D/LAB","Rebel","Rebel SLS","Neo","Neo SLS","Dice","Dice SLS","Juice","Vegas","Mono","Unit"],
+  "North": ["Orbit","Orbit Pro","Reach","Carve","Pulse","Code Zero","Mode"],
+  "Cabrinha": ["Switchblade","Moto","Moto X","FX","Drifter","Contra","Nitro Apex"],
+  "Core": ["XR","XR Pro","Nexus","Section","Pace","Impact","Air"],
+  "F-One": ["Bandit","Bandit S","Breeze","One","Furtive"],
+  "Naish": ["Pivot","Triad","Boxer","Torch","Slash","Phantom"],
+  "Ozone": ["Edge","Enduro","Catalyst","Zephyr","Alpha","Reo","Chrono","Uno"],
+  "Slingshot": ["RPX","Rally","Machine","Ghost","SST","UFO","Code"],
+  "Eleveight": ["RS","XS","FS","OS","WS"],
+  "Airush": ["Lithium","Union","Ultra","Session","One"],
+  "Reedin": ["SuperModel","HyperModel","ShadowModel"],
+  "Flysurfer": ["Soul","Peak","Sonic","Hybrid","Era"],
+  "CrazyFly": ["Hyper","Sculp","Cruze"],
+  "Liquid Force": ["Envy","Solo","NV","P1","WOW"],
+  "Harlem": ["Force","Peak","Go"],
+  "Ocean Rodeo": ["Flite","Roam","Crave","Rise"]
+};
+var KQ_SIZES = [3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18];
+const kNorm = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+function kBrand(s){ const n = kNorm(s); return Object.keys(KITE_DB).find(b => kNorm(b) === n) || null; }
+function kMatch(list, q){   // começa com > tem palavra que começa com > contém
+  const n = kNorm(q); if (!n) return list.slice();
+  const sc = x => { const v = kNorm(x); return v.startsWith(n) ? 0 : v.split(/[\s\/-]+/).some(w => w.startsWith(n)) ? 1 : v.includes(n) ? 2 : 9; };
+  return list.map(x => [x, sc(x)]).filter(p => p[1] < 9).sort((a, b) => a[1] - b[1]).map(p => p[0]);
+}
+function kHi(txt, q){ const n = kNorm(q), i = kNorm(txt).indexOf(n);
+  return (!n || i < 0) ? esc(txt) : esc(txt.slice(0, i)) + "<b>" + esc(txt.slice(i, i + n.length)) + "</b>" + esc(txt.slice(i + n.length)); }
+function quiverSizes(qv){ return Array.from(new Set(qv.map(k => +k.size))).sort((a, b) => a - b); }
+function kiteLabel(k){ const nm = [k.brand, k.model].filter(Boolean).join(" "); return (nm ? nm + " · " : "") + k.size + " m²"; }
+// nome do kite do usuário com esse tamanho (ex.: "Duotone Evo · 9 m²")
+function kiteName(size){ const k = (cfg.quiver || []).find(x => +x.size === +size); return k ? kiteLabel(k) : size + " m²"; }
+
 var KITE_SIZES = [5,6,7,8,9,10,11,12,13,14,15,17];
 var LEVEL_INFO = {
   iniciante:    ["🌱 Iniciante",    "Aprendendo a velejar · até 20 nós"],
@@ -1183,10 +1239,22 @@ var draft = null;
 
 function openSettings(newSpot){
   const spot = spots.find(s => s.id === cfg.spot) || {};
-  draft = {weight:cfg.weight, level:cfg.level, min:cfg.min, kites:(cfg.kites || []).slice(), name:spot.name || "",
+  draft = {weight:cfg.weight, level:cfg.level, min:cfg.min, kites:(cfg.kites || []).slice(), quiver:(cfg.quiver || []).map(k => Object.assign({}, k)), name:spot.name || "",
            sea:(spot.sea != null ? spot.sea : 180), lagoon:!!spot.lagoon, lat:spot.lat, lon:spot.lon};
   renderSettings(newSpot === true ? "pico" : "voce");
   if (!$("#dlg").open) $("#dlg").showModal();
+}
+
+function quiverHTML(d){
+  const list = d.quiver.length ? '<div class="kq-list">' + d.quiver.map((k, i) =>
+      '<div class="kq-item"><div class="kq-sz">' + k.size + '<small style="font-size:11px"> m²</small></div><div class="kq-nm">' +
+      (k.brand || k.model ? '<b>' + esc([k.brand, k.model].filter(Boolean).join(" ")) + '</b>' : '<b>Kite de ' + k.size + ' m²</b><small>sem marca/modelo</small>') +
+      '</div><button class="kq-del" data-del="' + i + '" aria-label="Remover">✕</button></div>').join("") + '</div>'
+    : '<div class="muted" style="margin-bottom:10px">Nenhum kite ainda. Adiciona abaixo 👇</div>';
+  return list + '<div class="kq-add"><label>Marca</label><input id="kqBrand" autocomplete="off" placeholder="Ex.: Duotone, North, Cabrinha…"><div class="kq-sug" id="kqBrandSug"></div>' +
+    '<label>Modelo</label><input id="kqModel" autocomplete="off" placeholder="Ex.: Evo, Orbit…"><div class="kq-sug" id="kqModelSug"></div>' +
+    '<label>Tamanho (m²)</label><div class="kq-sizes">' + KQ_SIZES.map(s => '<button data-ksz="' + s + '">' + s + '</button>').join("") + '</div>' +
+    '<button class="primary st-wide" id="kqAdd" disabled style="opacity:.5">+ Adicionar kite</button></div><div class="muted" id="stKsum" style="margin-top:8px"></div>';
 }
 
 function stSec(title, body){ return '<section class="st-sec"><h3>' + title + '</h3>' + body + '</section>'; }
@@ -1210,7 +1278,7 @@ function renderSettings(tab){
     h += stSec("Seu peso", '<div class="st-big"><span id="stW">' + d.weight + '</span> kg</div><input type="range" id="stWeight" min="40" max="130" value="' + d.weight + '">');
     h += stSec("Seu nível", '<div class="st-levels">' + Object.keys(LEVEL_INFO).map(k => '<button class="st-lv' + (k === d.level ? ' on' : '') + '" data-lv="' + k + '"><b>' + LEVEL_INFO[k][0] + '</b><small>' + LEVEL_INFO[k][1] + '</small></button>').join("") + '</div>');
     h += stSec("Vento mínimo pra você", '<div class="st-big"><span id="stM">' + d.min + '</span> nós</div><input type="range" id="stMin" min="6" max="20" value="' + d.min + '"><div class="muted">Abaixo disso o app considera o vento fraco demais.</div>');
-    h += stSec("Seus kites (m²)", '<div class="st-chips">' + KITE_SIZES.map(s => '<button class="st-chip' + (d.kites.indexOf(s) >= 0 ? ' on' : '') + '" data-k="' + s + '">' + s + '</button>').join("") + '</div><div class="muted" id="stKsum"></div>');
+    h += stSec("Seus kites 🪁", '<div id="kqBox">' + quiverHTML(d) + '</div>');
   } else if (tab === "pico") {
     h += stSec("Nome do pico", '<input id="stName" type="text" value="' + esc(d.name) + '">');
     h += stSec("Para que lado fica o mar?", compassHTML(d.sea) + '<div class="st-center" id="stSeaTxt"></div><div class="muted st-center">Olhando da areia para a água. Serve para saber se o vento vem do mar (seguro) ou da terra (perigoso).</div>');
@@ -1238,13 +1306,39 @@ function bindSettings(tab){
   qa(".st-tab").forEach(b => b.onclick = () => renderSettings(b.dataset.tab));
   if (tab === "voce") {
     const ksum = () => { const lo = Math.round(d.weight * 2.2 / 25), hi = Math.round(d.weight * 2.2 / 12);
-      q("#stKsum").textContent = (d.kites.length ? "Você tem: " + d.kites.join(" · ") + " m². " : "Toque nos tamanhos que você tem. ") +
-        "Com " + d.weight + " kg, entre 12 e 25 nós se usa de " + lo + " a " + hi + " m²."; };
+      q("#stKsum").textContent = "Com " + d.weight + " kg, entre 12 e 25 nós se usa de " + lo + " a " + hi + " m²."; };
     q("#stWeight").oninput = e => { d.weight = +e.target.value; q("#stW").textContent = d.weight; ksum(); };
     q("#stMin").oninput = e => { d.min = +e.target.value; q("#stM").textContent = d.min; };
     qa(".st-lv").forEach(b => b.onclick = () => { d.level = b.dataset.lv; qa(".st-lv").forEach(x => x.classList.toggle("on", x === b)); });
-    qa(".st-chip").forEach(b => b.onclick = () => { const k = +b.dataset.k, i = d.kites.indexOf(k);
-      if (i >= 0) d.kites.splice(i, 1); else d.kites.push(k); d.kites.sort((a, c) => a - c); b.classList.toggle("on", i < 0); ksum(); });
+    // ----- seus kites -----
+    let kSize = null;
+    const refresh = () => { const st = q(".st-body").scrollTop; q("#kqBox").innerHTML = quiverHTML(d); bindKq(); ksum(); q(".st-body").scrollTop = st; };
+    function bindKq(){
+      const bI = q("#kqBrand"), mI = q("#kqModel"), bS = q("#kqBrandSug"), mS = q("#kqModelSug"), addB = q("#kqAdd");
+      const canAdd = () => { addB.disabled = !kSize; addB.style.opacity = kSize ? 1 : .5; };
+      const sugB = () => { const v = bI.value; const ex = kBrand(v);
+        bS.innerHTML = (!v.trim() || ex) ? "" : kMatch(Object.keys(KITE_DB), v).slice(0, 6).map(b => '<button data-b="' + esc(b) + '">' + kHi(b, v) + '</button>').join("");
+        bS.querySelectorAll("button").forEach(x => x.onclick = () => { bI.value = x.dataset.b; bS.innerHTML = ""; mI.focus(); sugM(); }); };
+      const sugM = () => { const v = mI.value, br = kBrand(bI.value);
+        let opts = br ? KITE_DB[br].map(m => [br, m]) : [];
+        if (!br) { if (!v.trim()) { mS.innerHTML = ""; return; } Object.keys(KITE_DB).forEach(b => KITE_DB[b].forEach(m => opts.push([b, m]))); }
+        const hit = kMatch(opts.map(o => o[1]), v), seen = new Set();
+        opts = opts.filter(o => hit.indexOf(o[1]) >= 0).sort((a, b) => hit.indexOf(a[1]) - hit.indexOf(b[1]))
+          .filter(o => { const k = o[0] + o[1]; if (seen.has(k)) return false; seen.add(k); return true; });
+        if (opts.some(o => kNorm(o[1]) === kNorm(v))) { mS.innerHTML = ""; return; }
+        mS.innerHTML = opts.slice(0, 8).map(o => '<button data-b="' + esc(o[0]) + '" data-m="' + esc(o[1]) + '">' + (br ? "" : esc(o[0]) + " ") + kHi(o[1], v) + '</button>').join("");
+        mS.querySelectorAll("button").forEach(x => x.onclick = () => { bI.value = x.dataset.b; mI.value = x.dataset.m; mS.innerHTML = ""; bS.innerHTML = ""; }); };
+      bI.oninput = sugB; bI.onfocus = sugB; mI.oninput = sugM; mI.onfocus = sugM;
+      bI.onblur = () => { const ex = kBrand(bI.value); if (ex) bI.value = ex; };
+      qa("[data-ksz]").forEach(b => b.onclick = () => { kSize = +b.dataset.ksz; qa("[data-ksz]").forEach(x => x.classList.toggle("on", x === b)); canAdd(); });
+      qa("[data-del]").forEach(b => b.onclick = () => { d.quiver.splice(+b.dataset.del, 1); d.kites = quiverSizes(d.quiver); refresh(); });
+      addB.onclick = () => { if (!kSize) return;
+        const br = bI.value.trim(), md = mI.value.trim();
+        d.quiver.push({brand: kBrand(br) || br.slice(0, 30), model: md.slice(0, 30), size: kSize});
+        d.quiver.sort((a, c) => a.size - c.size); d.kites = quiverSizes(d.quiver); kSize = null; refresh(); };
+      canAdd();
+    }
+    bindKq();
     ksum();
   } else if (tab === "pico") {
     const seaTxt = () => { const s = SEA_DIRS.find(x => x[0] === d.sea); q("#stSeaTxt").innerHTML = "🌊 O mar fica para o <b>" + (s ? s[2] : d.sea + "°") + "</b>"; };
@@ -1325,7 +1419,7 @@ function bindGuide(q, d){
 
 function saveSettings(){
   const d = draft;
-  cfg.onboarded = true; cfg.weight = Math.max(30, Math.min(150, d.weight)); cfg.level = d.level; cfg.min = d.min; cfg.kites = d.kites.slice();
+  cfg.onboarded = true; cfg.weight = Math.max(30, Math.min(150, d.weight)); cfg.level = d.level; cfg.min = d.min; cfg.quiver = d.quiver.slice(); cfg.kites = quiverSizes(cfg.quiver);
   const spot = spots.find(s => s.id === cfg.spot);
   if (spot) { spot.name = (d.name || "").trim() || spot.name; spot.sea = d.sea; spot.lagoon = d.lagoon; if (d.lat != null) { spot.lat = d.lat; spot.lon = d.lon; } }
   store.set("kc_cfg", cfg); store.set("kc_spots", spots);
