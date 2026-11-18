@@ -274,6 +274,15 @@ input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;bac
 .kq-sizes{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
 .kq-sizes button{padding:9px 0;font-weight:700;background:var(--card2)}
 .kq-sizes button.on{border-color:var(--acc);background:rgba(56,189,248,.25);box-shadow:inset 0 0 0 1px var(--acc)}
+.kq-th{width:46px;height:46px;border-radius:10px;flex:none;overflow:hidden;background:var(--card2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative}
+.kq-th img{width:100%;height:100%;object-fit:cover}
+.kq-th svg{width:34px;height:34px}
+.kq-th input,.kq-ph input{display:none}
+.kq-th:after{content:"📷";position:absolute;right:-1px;bottom:-1px;font-size:10px;background:var(--card);border-radius:6px 0 8px 0;padding:0 2px;line-height:14px}
+.kq-sz2{font-weight:800;color:var(--acc)}
+.kq-ph{display:flex;align-items:center;gap:10px;margin-top:2px;cursor:pointer;padding:8px 10px;border:1px dashed var(--line);border-radius:12px;color:var(--mut);font-size:14px}
+.kq-ph .kq-th{width:40px;height:40px;cursor:pointer}
+.kq-ph .kq-th:after{display:none}
 .warn{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
 </style>
 </head>
@@ -1214,6 +1223,39 @@ var KITE_DB = {
   "Ocean Rodeo": ["Flite","Roam","Crave","Rise"]
 };
 var KQ_SIZES = [3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18];
+// marcas e modelos que o usuário digitou e não estavam na lista: o app aprende e passa a sugerir
+(function(){ const my = store.get("kc_kitedb_user", {});
+  Object.keys(my).forEach(b => { if (!KITE_DB[b]) KITE_DB[b] = []; (my[b] || []).forEach(m => { if (KITE_DB[b].indexOf(m) < 0) KITE_DB[b].push(m); }); }); })();
+function learnKite(k){
+  const brand = (k.brand || "").trim(); if (!brand) return;
+  const known = Object.keys(KITE_DB).find(b => String(b).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === brand.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase());
+  const b = known || brand, my = store.get("kc_kitedb_user", {});
+  if (!KITE_DB[b]) { KITE_DB[b] = []; my[b] = my[b] || []; }
+  const md = (k.model || "").trim();
+  if (md && !KITE_DB[b].some(m => m.toLowerCase() === md.toLowerCase())) { KITE_DB[b].push(md); (my[b] = my[b] || []).push(md); }
+  store.set("kc_kitedb_user", my);
+}
+// desenho de kite com cor tirada do nome da marca (quando não tem foto)
+function kiteIcon(brand){
+  let h = 0; for (const c of String(brand || "kite")) h = (h * 31 + c.charCodeAt(0)) % 360;
+  const c1 = "hsl(" + h + ",80%,58%)", c2 = "hsl(" + ((h + 40) % 360) + ",85%,45%)";
+  return '<svg viewBox="0 0 40 40"><path d="M3 22 C6 9 34 9 37 22 L31 23 C28 15 12 15 9 23 Z" fill="' + c1 + '"/><path d="M9 23 C12 15 28 15 31 23 L27 24 C24 19 16 19 13 24 Z" fill="' + c2 + '"/>' +
+    '<path d="M6 22 L20 36 L34 22" fill="none" stroke="#cfe6f5" stroke-width=".8" opacity=".7"/><circle cx="20" cy="36" r="1.6" fill="#cfe6f5"/></svg>';
+}
+function kiteThumb(k){ return k && k.photo ? '<img src="' + k.photo + '" alt="">' : kiteIcon(k && k.brand); }
+// reduz a foto pra 160x160 (fica leve pra guardar no aparelho)
+function kitePhoto(file){
+  return new Promise((ok, fail) => {
+    if (!file || !/^image\//.test(file.type || "image/")) return fail(new Error("não é imagem"));
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => { const S = 160, cv = document.createElement("canvas"); cv.width = cv.height = S;
+      const s = Math.min(img.naturalWidth, img.naturalHeight), c = cv.getContext("2d");
+      c.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, S, S);
+      URL.revokeObjectURL(url); ok(cv.toDataURL("image/jpeg", .72)); };
+    img.onerror = () => { URL.revokeObjectURL(url); fail(new Error("falhou")); };
+    img.src = url;
+  });
+}
 const kNorm = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 function kBrand(s){ const n = kNorm(s); return Object.keys(KITE_DB).find(b => kNorm(b) === n) || null; }
 function kMatch(list, q){   // começa com > tem palavra que começa com > contém
@@ -1247,13 +1289,14 @@ function openSettings(newSpot){
 
 function quiverHTML(d){
   const list = d.quiver.length ? '<div class="kq-list">' + d.quiver.map((k, i) =>
-      '<div class="kq-item"><div class="kq-sz">' + k.size + '<small style="font-size:11px"> m²</small></div><div class="kq-nm">' +
-      (k.brand || k.model ? '<b>' + esc([k.brand, k.model].filter(Boolean).join(" ")) + '</b>' : '<b>Kite de ' + k.size + ' m²</b><small>sem marca/modelo</small>') +
+      '<div class="kq-item"><label class="kq-th" title="Trocar foto">' + kiteThumb(k) + '<input type="file" accept="image/*" data-photo="' + i + '"></label><div class="kq-nm">' +
+      (k.brand || k.model ? '<b>' + esc([k.brand, k.model].filter(Boolean).join(" ")) + '</b><small><span class="kq-sz2">' + k.size + ' m²</span></small>' : '<b>Kite de ' + k.size + ' m²</b><small>sem marca/modelo</small>') +
       '</div><button class="kq-del" data-del="' + i + '" aria-label="Remover">✕</button></div>').join("") + '</div>'
     : '<div class="muted" style="margin-bottom:10px">Nenhum kite ainda. Adiciona abaixo 👇</div>';
   return list + '<div class="kq-add"><label>Marca</label><input id="kqBrand" autocomplete="off" placeholder="Ex.: Duotone, North, Cabrinha…"><div class="kq-sug" id="kqBrandSug"></div>' +
     '<label>Modelo</label><input id="kqModel" autocomplete="off" placeholder="Ex.: Evo, Orbit…"><div class="kq-sug" id="kqModelSug"></div>' +
     '<label>Tamanho (m²)</label><div class="kq-sizes">' + KQ_SIZES.map(s => '<button data-ksz="' + s + '">' + s + '</button>').join("") + '</div>' +
+    '<label>Foto (opcional)</label><label class="kq-ph"><span class="kq-th" id="kqPrev">' + kiteIcon("") + '</span><span id="kqPhTxt">📷 Tirar ou escolher foto do kite</span><input type="file" accept="image/*" id="kqPhoto"></label>' +
     '<button class="primary st-wide" id="kqAdd" disabled style="opacity:.5">+ Adicionar kite</button></div><div class="muted" id="stKsum" style="margin-top:8px"></div>';
 }
 
@@ -1311,7 +1354,7 @@ function bindSettings(tab){
     q("#stMin").oninput = e => { d.min = +e.target.value; q("#stM").textContent = d.min; };
     qa(".st-lv").forEach(b => b.onclick = () => { d.level = b.dataset.lv; qa(".st-lv").forEach(x => x.classList.toggle("on", x === b)); });
     // ----- seus kites -----
-    let kSize = null;
+    let kSize = null, kPhoto = null;
     const refresh = () => { const st = q(".st-body").scrollTop; q("#kqBox").innerHTML = quiverHTML(d); bindKq(); ksum(); q(".st-body").scrollTop = st; };
     function bindKq(){
       const bI = q("#kqBrand"), mI = q("#kqModel"), bS = q("#kqBrandSug"), mS = q("#kqModelSug"), addB = q("#kqAdd");
@@ -1328,14 +1371,20 @@ function bindSettings(tab){
         if (opts.some(o => kNorm(o[1]) === kNorm(v))) { mS.innerHTML = ""; return; }
         mS.innerHTML = opts.slice(0, 8).map(o => '<button data-b="' + esc(o[0]) + '" data-m="' + esc(o[1]) + '">' + (br ? "" : esc(o[0]) + " ") + kHi(o[1], v) + '</button>').join("");
         mS.querySelectorAll("button").forEach(x => x.onclick = () => { bI.value = x.dataset.b; mI.value = x.dataset.m; mS.innerHTML = ""; bS.innerHTML = ""; }); };
-      bI.oninput = sugB; bI.onfocus = sugB; mI.oninput = sugM; mI.onfocus = sugM;
+      bI.oninput = () => { sugB(); if (!kPhoto) q("#kqPrev").innerHTML = kiteIcon(bI.value); }; bI.onfocus = sugB; mI.oninput = sugM; mI.onfocus = sugM;
+      q("#kqPhoto").onchange = e => { const f = e.target.files[0]; if (!f) return; q("#kqPhTxt").textContent = "Carregando…";
+        kitePhoto(f).then(p => { kPhoto = p; q("#kqPrev").innerHTML = '<img src="' + p + '" alt="">'; q("#kqPhTxt").textContent = "✅ Foto pronta (toque pra trocar)"; })
+          .catch(() => { q("#kqPhTxt").textContent = "Não consegui abrir essa foto. Tenta outra?"; }); };
+      qa("[data-photo]").forEach(inp => inp.onchange = e => { const f = e.target.files[0], i = +inp.dataset.photo; if (!f) return;
+        kitePhoto(f).then(p => { d.quiver[i].photo = p; refresh(); }).catch(() => {}); });
       bI.onblur = () => { const ex = kBrand(bI.value); if (ex) bI.value = ex; };
       qa("[data-ksz]").forEach(b => b.onclick = () => { kSize = +b.dataset.ksz; qa("[data-ksz]").forEach(x => x.classList.toggle("on", x === b)); canAdd(); });
       qa("[data-del]").forEach(b => b.onclick = () => { d.quiver.splice(+b.dataset.del, 1); d.kites = quiverSizes(d.quiver); refresh(); });
       addB.onclick = () => { if (!kSize) return;
         const br = bI.value.trim(), md = mI.value.trim();
-        d.quiver.push({brand: kBrand(br) || br.slice(0, 30), model: md.slice(0, 30), size: kSize});
-        d.quiver.sort((a, c) => a.size - c.size); d.kites = quiverSizes(d.quiver); kSize = null; refresh(); };
+        const nk = {brand: kBrand(br) || br.slice(0, 30), model: md.slice(0, 30), size: kSize}; if (kPhoto) nk.photo = kPhoto;
+        learnKite(nk); d.quiver.push(nk);
+        d.quiver.sort((a, c) => a.size - c.size); d.kites = quiverSizes(d.quiver); kSize = null; kPhoto = null; refresh(); };
       canAdd();
     }
     bindKq();
@@ -1366,7 +1415,7 @@ function bindSettings(tab){
       store.set("kc_spots", spots); dlg.close(); load(); };
     q("#stReset").onclick = function(){
       if (this.dataset.ok !== "1") { this.dataset.ok = "1"; this.textContent = "Toque de novo para apagar tudo"; return; }
-      ["kc_spots","kc_cfg","kc_deleted","kc_last","kc_user"].forEach(k => { try { localStorage.removeItem(k); } catch(e){} });
+      ["kc_spots","kc_cfg","kc_deleted","kc_last","kc_user","kc_kitedb_user"].forEach(k => { try { localStorage.removeItem(k); } catch(e){} });
       location.reload();
     };
   }
