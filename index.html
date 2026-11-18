@@ -470,14 +470,15 @@ function render(){
       '<div class="seahead"><div><div class="muted" id="seaWhen"></div><div class="wh" id="seaH">–</div></div>' +
       '<div style="text-align:right"><div class="sstate" id="seaState"></div><div class="muted" id="seaDir"></div></div></div>' +
       '<canvas id="waveCv" aria-label="Onda animada"></canvas>' +
-      '<input type="range" id="seaScrub" min="' + idx + '" max="' + (hours.length - 1) + '" value="' + idx + '" aria-label="Escolher horário">' +
-      '<div class="muted" style="text-align:center">Arraste a onda ou a barra para ver as próximas horas</div>' +
       '<div class="seagrid">' +
         '<div class="stat"><b id="seaSwell">–</b><small>swell (ondulação)</small></div>' +
         '<div class="stat"><b id="seaWind">–</b><small>mar de vento</small></div>' +
         '<div class="stat"><b id="seaTemp">–</b><small>temp. da água</small></div>' +
         '<div class="stat"><b id="seaTide">–</b><small>maré (modelo, aprox.)</small></div>' +
-      '</div><canvas id="tideCv" aria-label="Gráfico da maré"></canvas></div>';
+      '</div><canvas id="tideCv" aria-label="Gráfico da maré"></canvas>' +
+      '<input type="range" id="seaScrub" min="' + idx + '" max="' + (hours.length - 1) + '" value="' + idx + '" aria-label="Escolher horário">' +
+      '<div class="muted" style="text-align:center">Arraste a onda ou a barra para ver as próximas horas</div>' +
+      '</div>';
   }
 
 
