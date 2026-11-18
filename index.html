@@ -142,6 +142,8 @@ dialog#dlg[open]{display:flex}
 .cmp-row:first-child{border-top:0;padding-top:0}
 .cmp-row .info{flex:1;font-size:13px;color:var(--mut)}
 .cmp-row .info b{color:var(--txt);font-size:14px}
+.when-chip{display:inline-flex;align-items:center;gap:6px;margin-bottom:6px;padding:5px 12px;border-radius:999px;background:var(--card2);border:1px solid var(--line);color:var(--txt);font-size:13px;font-weight:600;transition:all .2s}
+.when-chip.now{border-color:var(--acc);color:var(--acc);background:rgba(56,189,248,.12)}
 .warn{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
 </style>
 </head>
@@ -629,7 +631,7 @@ function initSea(start){
     sel = i; sc.value = i;
     const h = hours[i], s = h.sea || {};
     const st = s.wh != null ? seaState(s.wh) : null;
-    $("#seaWhen").textContent = (i === start ? "Agora · " : "") + fmtDay(h.date) + " " + fmtH(h.date);
+    $("#seaWhen").innerHTML = i === start ? '<span class="when-chip now">● Agora · ' + fmtH(h.date) + '</span>' : '<span class="when-chip">🕒 ' + dayLong(h.date) + ' · ' + fmtH(h.date) + '</span>';
     $("#seaH").textContent = s.wh != null ? s.wh.toFixed(1) + " m" : "–";
     $("#seaH").style.color = st ? st[2] : "";
     $("#seaState").textContent = st ? st[1] : "Sem dados";
@@ -714,13 +716,19 @@ function initSea(start){
 
 // Horários vêm no fuso do pico; o objeto Date é interpretado como local, então formatamos direto da string
 function fmtH(d){ return String(d.getHours()).padStart(2,"0")+"h"; }
+function dayLong(d){
+  const s = fmtDay(d); if (s === "Hoje" || s === "Amanhã") return s;
+  const w = d.toLocaleDateString("pt-BR",{weekday:"long"}).split("-")[0];
+  return w.charAt(0).toUpperCase() + w.slice(1);
+}
 function fmtDay(d){
   const today = new Date(); today.setHours(0,0,0,0);
   const dd = new Date(d); dd.setHours(0,0,0,0);
   const diff = Math.round((dd - today)/864e5);
   if (diff === 0) return "Hoje";
   if (diff === 1) return "Amanhã";
-  return d.toLocaleDateString("pt-BR",{weekday:"short"}).replace(".","");
+  const w = d.toLocaleDateString("pt-BR",{weekday:"short"}).replace(".","");
+  return w.charAt(0).toUpperCase() + w.slice(1);
 }
 
 // ---------- UI ----------
