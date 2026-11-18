@@ -57,6 +57,13 @@ label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
 .err{background:#3b1220;border-color:#7f1d1d}
 .spin{display:inline-block;width:18px;height:18px;border:3px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:s 1s linear infinite;vertical-align:middle}
 @keyframes s{to{transform:rotate(360deg)}}
+.seahead{display:flex;justify-content:space-between;align-items:flex-end;gap:8px}
+.wh{font-size:44px;font-weight:800;letter-spacing:-1px;line-height:1}
+.sstate{font-weight:700;font-size:15px}
+#waveCv{width:100%;height:190px;display:block;border-radius:14px;margin-top:10px;touch-action:pan-y;cursor:grab;background:#062a42}
+#seaScrub{width:100%;margin:12px 0 4px;accent-color:var(--acc)}
+#tideCv{width:100%;height:64px;display:block;margin-top:6px}
+.seagrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}
 .warn{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
 </style>
 </head>
@@ -190,7 +197,8 @@ function rate(h, spot){
   if (a <= 25)        { score -= 15; reasons.push(`↘️ Vento ${dn} onshore (de frente pro mar): seguro, mas difícil de sair.`); }
   else if (a <= 100)  { reasons.push(`✅ Direção ${dn} lateral (side/side-on): ideal.`); }
   else if (a <= 135)  { score -= 35; reasons.push(`⚠️ Direção ${dn} side-off: vento saindo da terra, cuidado.`); }
-  else                { danger = true; reasons.push(`🚫 Vento ${dn} OFFSHORE (vem da terra): te leva pro alto-mar.`); }
+  else if (w >= cfg.min - 3) { danger = true; reasons.push(`🚫 Vento ${dn} OFFSHORE (vem da terra): te leva pro alto-mar.`); }
+  else                { score -= 30; reasons.push(`↖️ Vento ${dn} offshore (vem da terra) — fraco agora, mas fique atento.`); }
 
   // Chuva
   if (h.rain >= 70)      { score -= 20; reasons.push(`🌧️ Chuva provável (${h.rain}%).`); }
@@ -231,18 +239,19 @@ async function load(){
 
   const base = `latitude=${spot.lat}&longitude=${spot.lon}&timezone=auto&forecast_days=7`;
   const wUrl = `https://api.open-meteo.com/v1/forecast?${base}&hourly=temperature_2m,precipitation_probability,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day&wind_speed_unit=kn`;
-  const mUrl = `https://marine-api.open-meteo.com/v1/marine?${base}&hourly=wave_height`;
+  const mUrl = `https://marine-api.open-meteo.com/v1/marine?${base}&hourly=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_period,swell_wave_direction,wind_wave_height,sea_surface_temperature,sea_level_height_msl`;
   try{
     const [wr, mr] = await Promise.all([
       fetch(wUrl).then(r => { if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); }),
       fetch(mUrl).then(r => r.ok ? r.json() : null).catch(() => null)
     ]);
     const H = wr.hourly, waves = {};
-    if (mr && mr.hourly) mr.hourly.time.forEach((t,i) => waves[t] = mr.hourly.wave_height[i]);
+    if (mr && mr.hourly) { const M = mr.hourly, g = (k,i) => (M[k] ? M[k][i] : null);
+      M.time.forEach((t,i) => waves[t] = {wh:g("wave_height",i), wd:g("wave_direction",i), wp:g("wave_period",i), sh:g("swell_wave_height",i), sp:g("swell_wave_period",i), sd:g("swell_wave_direction",i), ww:g("wind_wave_height",i), sst:g("sea_surface_temperature",i), tide:g("sea_level_height_msl",i)}); }
     const hours = H.time.map((t,i) => ({
       t, date:new Date(t), wind:H.wind_speed_10m[i] ?? 0, gust:H.wind_gusts_10m[i] ?? 0, dir:H.wind_direction_10m[i] ?? 0,
       temp:H.temperature_2m[i], rain:H.precipitation_probability[i] ?? 0, code:H.weather_code[i] ?? 0,
-      isDay:H.is_day[i] === 1, wave: waves[t] ?? null
+      isDay:H.is_day[i] === 1, sea: waves[t] || null, wave: (waves[t] && waves[t].wh != null) ? waves[t].wh : null
     }));
     hours.forEach(h => h.r = rate(h, spot));
     lastData = {spot, hours, utcOffset: wr.utc_offset_seconds};
@@ -296,6 +305,24 @@ function render(){
     <div class="kite">${nextTxt}</div>
   </div>`;
 
+  // Mar (onda animada + rolagem pelas horas)
+  if (hours.some(h => h.sea && h.sea.wh != null)) {
+    html += `<div class="card" id="seaCard"><h2>🌊 Mar</h2>
+      <div class="seahead"><div><div class="muted" id="seaWhen"></div><div class="wh" id="seaH">–</div></div>
+      <div style="text-align:right"><div class="sstate" id="seaState"></div><div class="muted" id="seaDir"></div></div></div>
+      <canvas id="waveCv" aria-label="Onda animada"></canvas>
+      <input type="range" id="seaScrub" min="${idx}" max="${hours.length-1}" value="${idx}" aria-label="Escolher horário">
+      <div class="muted" style="text-align:center">Arraste a onda ou a barra para ver as próximas horas</div>
+      <div class="seagrid">
+        <div class="stat"><b id="seaSwell">–</b><small>swell (ondulação)</small></div>
+        <div class="stat"><b id="seaWind">–</b><small>mar de vento</small></div>
+        <div class="stat"><b id="seaTemp">–</b><small>temp. da água</small></div>
+        <div class="stat"><b id="seaTide">–</b><small>maré (aprox.)</small></div>
+      </div>
+      <canvas id="tideCv" aria-label="Gráfico da maré"></canvas>
+    </div>`;
+  }
+
   // Próximas horas (24h)
   html += `<div class="card"><h2>Próximas horas</h2><div class="hours">`;
   hours.slice(idx, idx+24).forEach(h => {
@@ -326,6 +353,113 @@ function render(){
   });
   html += `</div><div class="warn">Previsão: Open-Meteo. Use como referência — sempre confira o mar no local e nunca veleje sozinho.</div>`;
   $("#main").innerHTML = html;
+  initSea(idx);
+}
+
+// ---------- Mar: onda animada estilo "coroa do Apple Watch" ----------
+const SEA_STATES = [
+  [0.1,"Espelhado","#7dd3fc"],[0.5,"Calmo / marola","#38bdf8"],[1.25,"Pouco agitado","#22c55e"],
+  [2.5,"Agitado","#facc15"],[4,"Muito agitado","#f97316"],[99,"Mar grosso","#ef4444"]
+];
+const seaState = wh => SEA_STATES.find(s => wh < s[0]) || SEA_STATES[SEA_STATES.length-1];
+let seaAnim = null;
+
+function initSea(start){
+  const cv = document.getElementById("waveCv"), sc = document.getElementById("seaScrub");
+  if (!cv || !sc || !cv.getContext || !lastData) return;
+  const hours = lastData.hours, ctx = cv.getContext("2d"), tcv = document.getElementById("tideCv");
+  let sel = start, shownH = 0, shownP = 8, shownW = 0, phase = 0, last = performance.now();
+
+  function fit(c){ const r = c.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+    if (c.width !== Math.round(r.width*d)) { c.width = Math.round(r.width*d); c.height = Math.round(r.height*d); }
+    c.getContext("2d").setTransform(d,0,0,d,0,0); return [r.width, r.height]; }
+
+  function select(i){
+    i = Math.max(+sc.min, Math.min(+sc.max, Math.round(i)));
+    sel = i; sc.value = i;
+    const h = hours[i], s = h.sea || {};
+    const st = s.wh != null ? seaState(s.wh) : null;
+    $("#seaWhen").textContent = (i === start ? "Agora · " : "") + fmtDay(h.date) + " " + fmtH(h.date);
+    $("#seaH").textContent = s.wh != null ? s.wh.toFixed(1) + " m" : "–";
+    $("#seaH").style.color = st ? st[2] : "";
+    $("#seaState").textContent = st ? st[1] : "Sem dados";
+    $("#seaDir").textContent = (s.wp != null ? "Período " + s.wp.toFixed(0) + " s" : "") + (s.wd != null ? " · de " + dirName(s.wd) : "");
+    $("#seaSwell").textContent = s.sh != null ? s.sh.toFixed(1) + " m · " + (s.sp != null ? s.sp.toFixed(0) + " s" : "") : "–";
+    $("#seaWind").textContent = s.ww != null ? s.ww.toFixed(1) + " m" : "–";
+    $("#seaTemp").textContent = s.sst != null ? s.sst.toFixed(0) + "°" : "–";
+    const nx = hours[i+1] && hours[i+1].sea, tTxt = s.tide != null ? s.tide.toFixed(2) + " m" : "–";
+    $("#seaTide").textContent = tTxt + (s.tide != null && nx && nx.tide != null ? (nx.tide > s.tide ? " ↑" : " ↓") : "");
+    drawTide();
+  }
+
+  function drawTide(){
+    if (!tcv) return; const [W,H] = fit(tcv), c = tcv.getContext("2d"); c.clearRect(0,0,W,H);
+    const a = Math.max(0, sel-12), b = Math.min(hours.length-1, sel+12), pts = [];
+    for (let i=a;i<=b;i++) if (hours[i].sea && hours[i].sea.tide != null) pts.push([i, hours[i].sea.tide]);
+    if (pts.length < 3) return;
+    const lo = Math.min(...pts.map(p=>p[1])), hi = Math.max(...pts.map(p=>p[1])), rg = (hi-lo) || 1;
+    const X = i => (i-a)/(b-a||1)*(W-8)+4, Y = v => H-8-(v-lo)/rg*(H-20);
+    c.beginPath(); pts.forEach((p,k)=> k ? c.lineTo(X(p[0]),Y(p[1])) : c.moveTo(X(p[0]),Y(p[1])));
+    c.strokeStyle = "#38bdf8"; c.lineWidth = 2; c.stroke();
+    c.lineTo(X(pts[pts.length-1][0]),H); c.lineTo(X(pts[0][0]),H); c.closePath(); c.fillStyle = "rgba(56,189,248,.15)"; c.fill();
+    const cur = pts.find(p=>p[0]===sel); if (cur){ c.beginPath(); c.arc(X(sel),Y(cur[1]),4.5,0,7); c.fillStyle="#fff"; c.fill(); }
+    c.fillStyle = "#8fb3c9"; c.font = "11px -apple-system,system-ui"; c.fillText("maré ±12h", 6, 12);
+  }
+
+  function frame(now){
+    if (!document.getElementById("waveCv")) { seaAnim = null; return; }
+    const dt = Math.min(0.05, (now-last)/1000); last = now;
+    const s = hours[sel].sea || {}, tH = s.wh || 0, tP = s.wp || 8, tW = s.ww || 0;
+    shownH += (tH-shownH)*Math.min(1, dt*5); shownP += (tP-shownP)*Math.min(1, dt*5); shownW += (tW-shownW)*Math.min(1, dt*5);
+    const [W,H] = fit(cv); ctx.clearRect(0,0,W,H);
+    const sky = ctx.createLinearGradient(0,0,0,H); sky.addColorStop(0,"#0b3b5c"); sky.addColorStop(1,"#062a42");
+    ctx.fillStyle = sky; ctx.fillRect(0,0,W,H);
+    const pxM = H*0.16, base = H*0.62;              // 1 metro = 16% da altura
+    const amp = Math.min(shownH, 5) * pxM / 2, lam = 70 + shownP*16, spd = 0.9 + 8/Math.max(shownP,3);
+    phase += dt*spd;
+    const col = (seaState(shownH)[2]);
+    const layers = [[0.55,0.6,"rgba(56,189,248,.25)",-14],[0.8,1.3,"rgba(14,116,170,.55)",-6],[1,0,"rgba(8,80,130,.95)",0]];
+    let yAt = null;
+    layers.forEach(([k,off,fill,dy]) => {
+      ctx.beginPath(); ctx.moveTo(0,H);
+      for (let x=0;x<=W;x+=3){
+        const y = base+dy - amp*k*Math.sin((x/lam)*2*Math.PI - phase*2 + off)
+                  - shownW*pxM*0.12*k*Math.sin((x/(lam*0.27))*2*Math.PI + phase*3.1 + off*2);
+        ctx.lineTo(x,y);
+      }
+      ctx.lineTo(W,H); ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
+    });
+    // crista com a cor do estado do mar
+    ctx.beginPath();
+    for (let x=0;x<=W;x+=3){ const y = base - amp*Math.sin((x/lam)*2*Math.PI - phase*2) - shownW*pxM*0.12*Math.sin((x/(lam*0.27))*2*Math.PI + phase*3.1); x ? ctx.lineTo(x,y) : ctx.moveTo(x,y); if (Math.abs(x-60)<2) yAt = y; }
+    ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke();
+    // pessoa de 1,75 m na prancha (referência de tamanho)
+    const py = (yAt ?? base) - 2, ph = 1.75*pxM;
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(44,py); ctx.lineTo(76,py); ctx.stroke();                         // prancha
+    ctx.beginPath(); ctx.moveTo(56,py); ctx.lineTo(60,py-ph*0.45); ctx.lineTo(64,py);             // pernas
+    ctx.moveTo(60,py-ph*0.45); ctx.lineTo(60,py-ph*0.82);                                        // tronco
+    ctx.moveTo(60,py-ph*0.68); ctx.lineTo(70,py-ph*0.6); ctx.stroke();                          // braço
+    ctx.beginPath(); ctx.arc(60,py-ph*0.91,ph*0.09,0,7); ctx.fillStyle="#fff"; ctx.fill();         // cabeça
+    // régua
+    ctx.fillStyle = "rgba(255,255,255,.75)"; ctx.font = "11px -apple-system,system-ui";
+    ctx.fillText("pessoa 1,75 m", 80, Math.max(14, py-ph+8));
+    seaAnim = requestAnimationFrame(frame);
+  }
+
+  // Arrastar a onda = girar a "coroa": esquerda avança, direita volta
+  let dragX = null, dragV = 0;
+  cv.addEventListener("pointerdown", e => { dragX = e.clientX; dragV = sel; cv.setPointerCapture(e.pointerId); cv.style.cursor = "grabbing"; });
+  cv.addEventListener("pointermove", e => { if (dragX === null) return; select(dragV + (dragX - e.clientX)/14); });
+  const end = () => { dragX = null; cv.style.cursor = "grab"; };
+  cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
+  cv.addEventListener("wheel", e => { e.preventDefault(); select(sel + Math.sign(e.deltaY || e.deltaX)); }, {passive:false});
+  sc.addEventListener("input", () => select(+sc.value));
+
+  if (seaAnim) cancelAnimationFrame(seaAnim);
+  select(start);
+  shownH = (hours[start].sea && hours[start].sea.wh) || 0;
+  seaAnim = requestAnimationFrame(frame);
 }
 
 // Horários vêm no fuso do pico; o objeto Date é interpretado como local, então formatamos direto da string
