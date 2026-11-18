@@ -242,7 +242,7 @@ dialog#dlg[open]{display:flex}
 }catch(e){}})();
 // ---------- Picos pré-cadastrados (orientação do mar aproximada; ajuste em ⚙︎) ----------
 const DEFAULT_SPOTS = [
-  {id:"pepe",  name:"Barra da Tijuca (Pepê) – RJ", lat:-23.0145, lon:-43.3440, sea:180},
+  {id:"k7",    name:"Barra da Tijuca – K7 – RJ",  lat:-23.0167, lon:-43.3078, sea:180},
   {id:"recreio",name:"Recreio – RJ",               lat:-23.0280, lon:-43.4650, sea:180},
   {id:"arraial",name:"Arraial do Cabo (Praia Grande) – RJ", lat:-22.9720, lon:-42.0340, sea:180},
   {id:"cabofrio",name:"Cabo Frio (Praia do Forte) – RJ", lat:-22.8890, lon:-42.0150, sea:135},
@@ -261,7 +261,7 @@ const LEVELS = {
 };
 const COLORS = {great:"var(--great)",good:"var(--good)",ok:"var(--ok)",bad:"var(--bad)",danger:"var(--danger)",none:"var(--none)"};
 const LABEL  = {great:"Ótimo",good:"Bom",ok:"Regular",bad:"Ruim",danger:"Perigoso",none:"Noite"};
-const DIRS = ["N","NNE","NE","ENE","L","ELE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"];
+const DIRS = ["N","NNE","NE","ENE","L","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"];
 
 // ---------- Armazenamento seguro ----------
 const store = {
@@ -272,7 +272,19 @@ let spots = store.get("kc_spots", DEFAULT_SPOTS.slice());
 (function(){ const del = store.get("kc_deleted", []);
   DEFAULT_SPOTS.forEach(d => { const s = spots.find(x => x.id === d.id);
     if (!s && del.indexOf(d.id) < 0) spots.push(d); else if (s && d.lagoon) s.lagoon = true; }); })();
-let cfg = Object.assign({weight:75, level:"intermediario", min:12, spot:"pepe", kites:[], favs:[]}, store.get("kc_cfg", {}));
+let cfg = Object.assign({weight:75, level:"intermediario", min:12, spot:"k7", kites:[], favs:[]}, store.get("kc_cfg", {}));
+// Pico principal agora é o K7 (Barra da Tijuca): troca o antigo Pepê por ele
+(function(){
+  if (spots.some(s => s.id === "pepe")) {
+    spots = spots.filter(s => s.id !== "pepe");
+    if (!spots.some(s => s.id === "k7")) spots.unshift(Object.assign({}, DEFAULT_SPOTS[0]));
+    store.set("kc_spots", spots);
+  }
+  const k = spots.findIndex(s => s.id === "k7");
+  if (k > 0) { spots.unshift(spots.splice(k, 1)[0]); store.set("kc_spots", spots); }
+  if (cfg.spot === "pepe") cfg.spot = "k7";
+  if (cfg.favs) cfg.favs = cfg.favs.map(f => f === "pepe" ? "k7" : f);
+})();
 let lastData = null;
 
 const $ = s => document.querySelector(s);
