@@ -107,6 +107,11 @@ dialog#dlg[open]{display:flex}
 .g-card{display:flex;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
 .g-card:first-of-type{border-top:0;padding-top:0}
 .g-ic{font-size:22px;line-height:1.2}
+.nav{position:sticky;top:env(safe-area-inset-top);z-index:5;display:flex;gap:6px;margin:0 -14px 12px;padding:6px 14px;background:rgba(4,30,48,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.nav button{flex:1;padding:10px 6px;font-weight:600;background:transparent;border-color:transparent;color:var(--mut)}
+.nav button.on{background:var(--card2);border-color:var(--line);color:var(--txt)}
+.ghead{margin:2px 0 4px}
+.ghead h2{font-size:22px;margin:0 0 4px}
 .warn{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
 </style>
 </head>
@@ -118,6 +123,8 @@ dialog#dlg[open]{display:flex}
     <button id="btnSettings" aria-label="Configurações">⚙︎</button>
   </div>
 </header>
+<nav class="nav" id="nav"><button class="on" data-view="prev">🪁 Previsão</button><button data-view="guia">📚 Guia de kites</button></nav>
+<div id="viewPrev">
 
 <div class="card" style="padding:10px">
   <div class="row">
@@ -128,6 +135,8 @@ dialog#dlg[open]{display:flex}
 </div>
 
 <div id="main"><div class="card hero"><span class="spin"></span> Carregando previsão…</div></div>
+</div>
+<div id="viewGuia" hidden></div>
 
 <dialog id="dlg"></dialog>
 
@@ -640,7 +649,7 @@ function compassHTML(sea){
 
 function renderSettings(tab){
   const d = draft;
-  const tabs = [["voce","👤 Você"],["pico","📍 Pico"],["guia","📚 Guia"],["app","⚙️ App"]];
+  const tabs = [["voce","👤 Você"],["pico","📍 Pico"],["app","⚙️ App"]];
   let h = '<div class="st-head"><h2>Ajustes</h2><button class="st-x" id="stClose" aria-label="Fechar">✕</button></div>';
   h += '<div class="st-tabs">' + tabs.map(t => '<button class="st-tab' + (t[0] === tab ? ' on' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>').join("") + '</div><div class="st-body">';
   if (tab === "voce") {
@@ -654,8 +663,6 @@ function renderSettings(tab){
     h += stSec("Tipo de pico", '<label class="st-sw"><input type="checkbox" id="stLagoon"' + (d.lagoon ? ' checked' : '') + '><span></span>É lagoa (ondas do oceano não contam)</label>');
     h += stSec("Localização", '<div class="muted" id="stCoord">' + (d.lat != null ? d.lat.toFixed(4) + ", " + d.lon.toFixed(4) : "–") + '</div><button id="stGpsHere" class="st-wide">📍 Usar minha localização atual neste pico</button>');
     h += '<button id="stDelete" class="st-wide st-danger" style="margin-top:14px">🗑️ Excluir este pico</button>';
-  } else if (tab === "guia") {
-    h += guideHTML();
   } else {
     h += stSec("Picos", '<button id="stRestore" class="st-wide" style="margin-top:0">↩️ Restaurar picos padrão</button><div class="muted" style="margin-top:6px">Traz de volta os picos que você excluiu.</div>');
     h += stSec("Dados", '<button id="stReset" class="st-wide st-danger" style="margin-top:0">Apagar todas as configurações</button><div class="muted" style="margin-top:6px">Volta tudo ao padrão neste aparelho.</div>');
@@ -701,8 +708,6 @@ function bindSettings(tab){
       spots = spots.filter(s => s.id !== cfg.spot); cfg.spot = spots[0].id;
       store.set("kc_spots", spots); store.set("kc_cfg", cfg); dlg.close(); load();
     };
-  } else if (tab === "guia") {
-    bindGuide(q);
   } else {
     q("#stRestore").onclick = () => { store.set("kc_deleted", []);
       DEFAULT_SPOTS.forEach(d0 => { if (!spots.find(s => s.id === d0.id)) spots.push(Object.assign({}, d0)); });
@@ -735,16 +740,16 @@ var GUIDE_TYPES = [
   ["Foil kite","Sem câmaras de ar, sobe com pouquíssimo vento. Mais difícil de relançar na água."]
 ];
 function guideSize(w, kg){ return Math.max(4, Math.min(19, Math.round(kg * 2.2 / w))); }
-function guideHTML(){
-  const d = draft, gw = d.guideWind || 16;
+function guideHTML(d){
+  const gw = d.guideWind || 16;
   let h = stSec("Qual kite pra esse vento?", '<div class="st-big"><span id="gW">' + gw + '</span> nós</div><input type="range" id="gWind" min="8" max="35" value="' + gw + '"><div id="gOut"></div>');
   h += stSec("Tabela pra " + d.weight + " kg", '<div id="gTable"></div><div class="muted" style="margin-top:6px">Valores aproximados pra prancha bidirecional (twin-tip). ✓ = você tem um kite desse tamanho (±1 m²).</div>');
   h += stSec("Cada situação", GUIDE_SIT.map(s => '<div class="g-card"><div class="g-ic">' + s[0] + '</div><div><b>' + s[1] + '</b><div class="muted">' + s[2] + '</div></div></div>').join(""));
   h += stSec("Tipos de kite", GUIDE_TYPES.map(s => '<div class="g-card"><div><b>' + s[0] + '</b><div class="muted">' + s[1] + '</div></div></div>').join(""));
   return h;
 }
-function bindGuide(q){
-  const d = draft, winds = [10,12,14,16,18,20,22,25,28,32];
+function bindGuide(q, d){
+  const winds = [10,12,14,16,18,20,22,25,28,32];
   const draw = () => {
     const gw = d.guideWind || 16, sz = guideSize(gw, d.weight), L = LEVELS[d.level];
     const has = d.kites.filter(k => Math.abs(k - sz) <= 1);
@@ -767,8 +772,32 @@ function saveSettings(){
   if (spot) { spot.name = (d.name || "").trim() || spot.name; spot.sea = d.sea; spot.lagoon = d.lagoon; if (d.lat != null) { spot.lat = d.lat; spot.lon = d.lon; } }
   store.set("kc_cfg", cfg); store.set("kc_spots", spots);
   $("#dlg").close(); load();
+  if (!$("#viewGuia").hidden) renderGuidePage();
 }
 $("#btnSettings").addEventListener("click", () => openSettings(false));
+
+// ---------- Navegação (Previsão / Guia) ----------
+var guideState = null;
+function showView(v){
+  document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("on", b.dataset.view === v));
+  $("#viewPrev").hidden = v !== "prev"; $("#viewGuia").hidden = v !== "guia";
+  if (v === "guia") renderGuidePage();
+  try { history.replaceState(null, "", v === "guia" ? "#guia" : location.pathname + location.search); } catch(e){}
+  window.scrollTo(0, 0);
+}
+function renderGuidePage(){
+  const cur = lastData && lastData.hours ? lastData.hours[lastData.idx || 0] : null;
+  const nowW = cur ? Math.round(cur.wind) : null;
+  guideState = {weight:cfg.weight, level:cfg.level, kites:(cfg.kites || []).slice(),
+    guideWind: guideState ? guideState.guideWind : (nowW != null && nowW >= 8 ? Math.min(35, nowW) : 16)};
+  const el = $("#viewGuia");
+  el.innerHTML = '<div class="ghead"><h2>📚 Guia de kites</h2><div class="muted">Pra ' + cfg.weight + ' kg' +
+    (cfg.kites && cfg.kites.length ? ' · seus kites: ' + cfg.kites.join(", ") + ' m²' : '') +
+    (nowW != null ? ' · agora em ' + esc(lastData.spot.name) + ': ' + nowW + ' nós' : '') + '. Peso e kites você muda em ⚙︎.</div></div>' + guideHTML(guideState);
+  bindGuide(s => el.querySelector(s), guideState);
+}
+document.querySelectorAll("#nav button").forEach(b => b.addEventListener("click", () => showView(b.dataset.view)));
+if (location.hash === "#guia") showView("guia");
 
 // Atualiza ao voltar pro app
 document.addEventListener("visibilitychange", () => { if (!document.hidden && lastData) load(); });
