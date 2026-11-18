@@ -61,8 +61,8 @@ label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
 .wh{font-size:44px;font-weight:800;letter-spacing:-1px;line-height:1}
 .sstate{font-weight:700;font-size:15px}
 #waveCv{width:100%;height:190px;display:block;border-radius:14px;margin-top:10px;background:#062a42}
-#seaScrub{width:100%;margin:12px 0 4px;accent-color:var(--acc)}
-#tideCv{width:100%;height:64px;display:block;margin-top:6px}
+#seaScrub{margin:10px 0 0}
+#tideCv{width:100%;height:104px;display:block;margin-top:10px}
 .seagrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}
 dialog#dlg{width:min(96vw,480px);max-height:92vh;padding:0;overflow:hidden;flex-direction:column}
 dialog#dlg[open]{display:flex}
@@ -77,7 +77,7 @@ dialog#dlg[open]{display:flex}
 .st-sec h3{margin:0 0 8px;font-size:12px;color:var(--mut);font-weight:700;text-transform:uppercase;letter-spacing:.6px}
 .st-big{font-size:28px;font-weight:800;letter-spacing:-.5px}
 .st-big span{color:var(--acc)}
-.st-sec input[type=range]{width:100%;accent-color:var(--acc);padding:0;border:0;background:none;margin:10px 0 4px}
+.st-sec input[type=range]{margin:6px 0 2px}
 .st-levels{display:grid;gap:8px}
 .st-lv{text-align:left;display:flex;flex-direction:column;gap:2px;background:var(--card);padding:10px 12px}
 .st-lv small{color:var(--mut);font-size:12px}
@@ -218,6 +218,15 @@ dialog#dlg[open]{display:flex}
 .lk-btn{padding:7px 12px;font-weight:700;color:#1a1300;background:linear-gradient(135deg,#facc15,#f59e0b);border:0}
 .locked .lk-btn{width:100%}
 .lk-inline{padding:12px;border-radius:12px;background:var(--card2);border:1px dashed #a16207;font-size:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:8px}
+.welcome{border-color:#38bdf8;background:linear-gradient(135deg,rgba(56,189,248,.16),rgba(10,46,71,1))}
+.wl-t{font-size:18px;font-weight:800;margin-bottom:4px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:44px;background:transparent;padding:0;border:0;margin:6px 0;touch-action:pan-y;cursor:pointer}
+input[type=range]:focus{outline:none}
+input[type=range]::-webkit-slider-runnable-track{height:12px;border-radius:6px;background:linear-gradient(90deg,var(--acc) var(--p,0%),#dbe4ee var(--p,0%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:32px;height:32px;margin-top:-10px;border-radius:50%;background:#fff;border:4px solid var(--acc);box-shadow:0 2px 10px rgba(0,0,0,.45)}
+input[type=range]::-moz-range-track{height:12px;border-radius:6px;background:#dbe4ee}
+input[type=range]::-moz-range-progress{height:12px;border-radius:6px;background:var(--acc)}
+input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:#fff;border:4px solid var(--acc)}
 .warn{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
 </style>
 </head>
@@ -295,6 +304,7 @@ let spots = store.get("kc_spots", DEFAULT_SPOTS.slice());
   DEFAULT_SPOTS.forEach(d => { const s = spots.find(x => x.id === d.id);
     if (!s && del.indexOf(d.id) < 0) spots.push(d); }); })();
 let cfg = Object.assign({weight:75, level:"intermediario", min:12, spot:"k7", kites:[], favs:[], plan:"pro_m"}, store.get("kc_cfg", {}));
+if (!store.get("kc_cfg", null)) cfg.onboarded = false;   // primeira vez abrindo o app
 // Pico principal agora é o K7 (Barra da Tijuca): troca o antigo Pepê por ele
 (function(){
   if (spots.some(s => s.id === "pepe")) {
@@ -398,7 +408,7 @@ function wetsuit(t){
 }
 
 // ---------- Busca dos dados (Open-Meteo, grátis e sem chave) ----------
-async function load(){
+async function load(force){
   const spot = spots.find(s => s.id === cfg.spot) || spots[0];
   if (!spot) { $("#main").innerHTML = `<div class="card">Nenhum pico cadastrado. Toque em 📍 para adicionar sua localização.</div>`; return; }
   cfg.spot = spot.id; store.set("kc_cfg", cfg);
@@ -411,8 +421,10 @@ async function load(){
   const eUrl = "https://api.open-meteo.com/v1/forecast?" + base + "&hourly=wind_speed_10m&models=ecmwf_ifs025,gfs_seamless,icon_seamless&wind_speed_unit=kn";
   const mUrl = `https://marine-api.open-meteo.com/v1/marine?${base}&hourly=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_period,swell_wave_direction,wind_wave_height,sea_surface_temperature,sea_level_height_msl`;
   try{
-    let wr, mr, er, cachedAt = null;
-    try {
+    let wr, mr, er, cachedAt = null, fetchedAt = Date.now();
+    const fresh = store.get("kc_last", null);
+    if (!force && fresh && fresh.id === spot.id && fresh.wr && Date.now() - fresh.ts < 15 * 60e3) { wr = fresh.wr; mr = fresh.mr; er = fresh.er; fetchedAt = fresh.ts; }
+    else try {
     [wr, mr, er] = await Promise.all([
       getJSON(wUrl),
       getJSON(mUrl).catch(() => null),
@@ -446,11 +458,11 @@ async function load(){
     hours.forEach(h => h.r = rate(h, spot));
     const sun = {};
     if (wr.daily && wr.daily.time) wr.daily.time.forEach((d,i) => sun[d] = {rise:(wr.daily.sunrise[i]||"").slice(11,16), set:(wr.daily.sunset[i]||"").slice(11,16), uv: wr.daily.uv_index_max ? wr.daily.uv_index_max[i] : null});
-    lastData = {spot, hours, utcOffset: wr.utc_offset_seconds, sun, nModels, cachedAt, fetchedAt: cachedAt ? null : Date.now()};
+    lastData = {spot, hours, utcOffset: wr.utc_offset_seconds, sun, nModels, cachedAt, fetchedAt: cachedAt ? null : fetchedAt};
     store.set("kc_cache_"+spot.id, {saved:Date.now()});
     render();
   }catch(e){
-    $("#main").innerHTML = `<div class="card err">Não consegui baixar a previsão. Verifique sua internet e toque em ↻.<div class="muted" style="margin-top:6px">${esc(e.message)}</div></div>`;
+    $("#main").innerHTML = `<div class="card err">${e.limit ? "Limite de consultas da previsão atingido 😕" : "Não consegui baixar a previsão. Verifique sua internet e toque em ↻."}<div class="muted" style="margin-top:6px">${esc(e.message)}</div></div>`;
   }
 }
 
@@ -460,10 +472,12 @@ async function getJSON(url, tries){
   for (let k = 0; k < tries; k++) {
     try {
       const r = await fetch(url); const tx = await r.text();
+      if (r.status === 429 || /limit exceeded/i.test(tx)) { const e = new Error("limite"); e.limit = true; throw e; }
       if (!r.ok) throw new Error("HTTP " + r.status);
       return JSON.parse(tx);
-    } catch(e) { last = e; if (k < tries - 1) await new Promise(res => setTimeout(res, 800 * (k + 1))); }
+    } catch(e) { last = e; if (e.limit) break; if (k < tries - 1) await new Promise(res => setTimeout(res, 800 * (k + 1))); }
   }
+  if (last && last.limit) { const e = new Error("O servidor de previsão atingiu o limite de consultas grátis desta internet por hoje. Tente em outra rede (4G ou outro Wi-Fi) ou mais tarde."); e.limit = true; throw e; }
   throw new Error("servidor de previsão instável, tente de novo");
 }
 
@@ -497,7 +511,7 @@ function render(){
   const alerts = upcomingAlerts(hours, idx);
   const stat = (v, l) => '<div class="stat"><b>' + v + '</b><small>' + l + '</small></div>';
 
-  let html = statusHTML();
+  let html = statusHTML() + (cfg.onboarded === false ? welcomeHTML() : "");
   if (alerts.length) html += '<div class="card alerts">' + alerts.map(a => '<div class="al ' + a.lvl + '">' + esc(a.t) + '</div>').join("") +
     '<div class="muted" style="margin-top:8px">Alertas aparecem mesmo quando a nota geral é boa.</div></div>';
 
@@ -739,6 +753,14 @@ function shareForecast(){
   if (!win && navigator.clipboard) navigator.clipboard.writeText(text + " " + url).then(() => { if (b) b.textContent = "✅ Texto copiado! Cole no WhatsApp"; }).catch(() => {});
 }
 
+// ---------- Boas-vindas (primeira vez abrindo o app) ----------
+function welcomeHTML(){
+  return '<div class="card welcome"><div class="wl-t">👋 Bem-vindo ao KiteCheck!</div>' +
+    '<div class="muted">Pra recomendação ficar certa pra você, me conta seu peso, seu nível e os kites que você tem. Leva uns 20 segundos.</div>' +
+    '<div class="row" style="margin-top:12px"><button class="primary" style="flex:1" onclick="openSettings(false)">Configurar agora</button>' +
+    '<button onclick="cfg.onboarded = true; store.set(\'kc_cfg\', cfg); render()">Agora não</button></div></div>';
+}
+
 // ---------- Cartão "Melhor janela" ----------
 function wstat(v, l){ return '<div class="wst"><b>' + v + '</b><small>' + l + '</small></div>'; }
 function windowCardHTML(hours, idx, spot, win){
@@ -791,7 +813,7 @@ async function spotsData(list){
     "&hourly=precipitation_probability,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day&wind_speed_unit=kn&timezone=auto&forecast_days=2";
   const murl = "https://marine-api.open-meteo.com/v1/marine?" + coords + "&hourly=wave_height&timezone=auto&forecast_days=2";
   let [res, mres] = await Promise.all([
-    getJSON(url).catch(() => Promise.all(list.map(s => getJSON(url.replace(/latitude=[^&]*&longitude=[^&]*/, "latitude=" + s.lat + "&longitude=" + s.lon))))),
+    getJSON(url).catch(e => e.limit ? Promise.reject(e) : Promise.all(list.map(s => getJSON(url.replace(/latitude=[^&]*&longitude=[^&]*/, "latitude=" + s.lat + "&longitude=" + s.lon))))),
     getJSON(murl).catch(() => null)
   ]);
   if (!Array.isArray(res)) res = [res];
@@ -980,7 +1002,7 @@ function initSea(start){
 
   function select(i){
     i = Math.max(+sc.min, Math.min(+sc.max, Math.round(i)));
-    sel = i; sc.value = i;
+    sel = i; sc.value = i; setRangeFill(sc);
     const h = hours[i], s = h.sea || {};
     const st = s.wh != null ? seaState(s.wh) : null;
     $("#seaWhen").innerHTML = i === start ? '<span class="when-chip now">● Agora · ' + fmtH(h.date) + '</span>' : '<span class="when-chip">🕒 ' + dayLong(h.date) + ' · ' + fmtH(h.date) + '</span>';
@@ -1002,13 +1024,36 @@ function initSea(start){
     const a = Math.max(0, sel-12), b = Math.min(hours.length-1, sel+12), pts = [];
     for (let i=a;i<=b;i++) if (hours[i].sea && hours[i].sea.tide != null) pts.push([i, hours[i].sea.tide]);
     if (pts.length < 3) return;
+    const top = 30, bot = 20;   // espaço pros textos em cima e pras horas embaixo
     const lo = Math.min(...pts.map(p=>p[1])), hi = Math.max(...pts.map(p=>p[1])), rg = (hi-lo) || 1;
-    const X = i => (i-a)/(b-a||1)*(W-8)+4, Y = v => H-8-(v-lo)/rg*(H-20);
+    const X = i => (i-a)/(b-a||1)*(W-16)+8, Y = v => H-bot-(v-lo)/rg*(H-top-bot);
+    c.font = "10px -apple-system,system-ui,sans-serif";
+    // horários no eixo de baixo
+    c.fillStyle = "#8fb3c9"; c.textAlign = "center";
+    for (let i = a + 1; i < b; i++) if ((+hours[i].t.slice(11,13)) % 6 === 0) { c.fillText(fmtH(hours[i].date), X(i), H - 5); c.fillRect(X(i) - 0.5, H - bot, 1, 3); }
+    // linha e área da maré
     c.beginPath(); pts.forEach((p,k)=> k ? c.lineTo(X(p[0]),Y(p[1])) : c.moveTo(X(p[0]),Y(p[1])));
     c.strokeStyle = "#38bdf8"; c.lineWidth = 2; c.stroke();
-    c.lineTo(X(pts[pts.length-1][0]),H); c.lineTo(X(pts[0][0]),H); c.closePath(); c.fillStyle = "rgba(56,189,248,.15)"; c.fill();
-    const cur = pts.find(p=>p[0]===sel); if (cur){ c.beginPath(); c.arc(X(sel),Y(cur[1]),4.5,0,7); c.fillStyle="#fff"; c.fill(); }
-    c.fillStyle = "#8fb3c9"; c.font = "11px -apple-system,system-ui"; c.fillText("maré ±12h", 6, 12);
+    c.lineTo(X(pts[pts.length-1][0]),H-bot); c.lineTo(X(pts[0][0]),H-bot); c.closePath(); c.fillStyle = "rgba(56,189,248,.15)"; c.fill();
+    // marés alta e baixa
+    for (let k = 1; k < pts.length - 1; k++) {
+      const [i, v] = pts[k], pv = pts[k-1][1], nv = pts[k+1][1];
+      const isHi = v >= pv && v > nv, isLo = v <= pv && v < nv;
+      if (!isHi && !isLo) continue;
+      const x = X(i), y = Y(v);
+      c.beginPath(); c.arc(x, y, 3, 0, 7); c.fillStyle = isHi ? "#38bdf8" : "#8fb3c9"; c.fill();
+      c.fillStyle = "#e8f4fb"; c.textAlign = "center";
+      c.fillText((isHi ? "▲ alta " : "▼ baixa ") + fmtH(hours[i].date), Math.min(W - 34, Math.max(34, x)), y - 8);
+    }
+    // horário escolhido
+    const cur = pts.find(p=>p[0]===sel);
+    if (cur) {
+      const x = X(sel), y = Y(cur[1]);
+      c.strokeStyle = "rgba(255,255,255,.35)"; c.lineWidth = 1; c.setLineDash([2,3]); c.beginPath(); c.moveTo(x, top - 8); c.lineTo(x, H - bot); c.stroke(); c.setLineDash([]);
+      c.beginPath(); c.arc(x,y,4.5,0,7); c.fillStyle="#fff"; c.fill();
+    }
+    c.fillStyle = "#8fb3c9"; c.textAlign = "left";
+    c.fillText("Maré (12h antes e depois)" + (cur ? " · " + fmtH(hours[sel].date) + ": " + cur[1].toFixed(2) + " m" : ""), 4, 11);
   }
 
   function frame(now){
@@ -1151,6 +1196,7 @@ function renderSettings(tab){
   h += '</div><div class="st-foot"><button id="stCancel">Cancelar</button><button class="primary" id="stSave">Salvar</button></div>';
   $("#dlg").innerHTML = h;
   bindSettings(tab);
+  document.querySelectorAll("#dlg input[type=range]").forEach(setRangeFill);
 }
 
 function bindSettings(tab){
@@ -1247,7 +1293,7 @@ function bindGuide(q, d){
 
 function saveSettings(){
   const d = draft;
-  cfg.weight = Math.max(30, Math.min(150, d.weight)); cfg.level = d.level; cfg.min = d.min; cfg.kites = d.kites.slice();
+  cfg.onboarded = true; cfg.weight = Math.max(30, Math.min(150, d.weight)); cfg.level = d.level; cfg.min = d.min; cfg.kites = d.kites.slice();
   const spot = spots.find(s => s.id === cfg.spot);
   if (spot) { spot.name = (d.name || "").trim() || spot.name; spot.sea = d.sea; spot.lagoon = d.lagoon; if (d.lat != null) { spot.lat = d.lat; spot.lon = d.lon; } }
   store.set("kc_cfg", cfg); store.set("kc_spots", spots);
@@ -1316,6 +1362,21 @@ function renderProPage(){
   document.querySelectorAll(".pro-plan[data-plan]").forEach(el => el.addEventListener("click", () => { setPlan(el.dataset.plan); renderProPage(); }));
 }
 
+// ---------- Barras deslizantes: mais fáceis no celular ----------
+// pinta a parte preenchida e deixa tocar/arrastar em qualquer ponto da barra (no iPhone só a bolinha respondia)
+function setRangeFill(el){ const mn = +el.min || 0, mx = +el.max || 100; el.style.setProperty("--p", ((+el.value - mn) / ((mx - mn) || 1) * 100) + "%"); }
+function rangeFromTouch(el, x){
+  const r = el.getBoundingClientRect(), mn = +el.min || 0, mx = +el.max || 100, st = +el.step || 1, pad = 16;
+  const p = Math.max(0, Math.min(1, (x - r.left - pad) / ((r.width - 2 * pad) || 1)));
+  const v = Math.round((mn + p * (mx - mn)) / st) * st;
+  if (+el.value !== v) { el.value = v; el.dispatchEvent(new Event("input", {bubbles: true})); }
+}
+document.addEventListener("input", e => { if (e.target && e.target.type === "range") setRangeFill(e.target); });
+["touchstart", "touchmove"].forEach(ev => document.addEventListener(ev, e => {
+  const el = e.target; if (!el || el.type !== "range" || !e.touches[0]) return;
+  rangeFromTouch(el, e.touches[0].clientX);
+}, {passive: true}));
+
 // ---------- Navegação (Previsão / Guia) ----------
 var guideState = null;
 function showView(v){
@@ -1336,6 +1397,7 @@ function renderGuidePage(){
     (cfg.kites && cfg.kites.length ? ' · seus kites: ' + cfg.kites.join(", ") + ' m²' : '') +
     (nowW != null ? ' · agora em ' + esc(lastData.spot.name) + ': ' + nowW + ' nós' : '') + '. Peso e kites você muda em ⚙︎.</div></div>' + guideHTML(guideState);
   bindGuide(s => el.querySelector(s), guideState);
+  el.querySelectorAll("input[type=range]").forEach(setRangeFill);
 }
 document.querySelectorAll("#nav button").forEach(b => b.addEventListener("click", () => showView(b.dataset.view)));
 if (location.hash === "#guia" || location.hash === "#pro") showView(location.hash.slice(1));
