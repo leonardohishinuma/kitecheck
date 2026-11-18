@@ -207,12 +207,23 @@ dialog#dlg[open]{display:flex}
 .hd{font-size:11px;margin-top:2px;white-space:nowrap}
 .hl{font-size:9px;color:var(--mut);margin-top:3px}
 .share-btn{width:100%;margin-top:12px;font-weight:700;background:rgba(37,211,102,.12);border-color:rgba(37,211,102,.5);color:#bbf7d0}
+.plan-badge{font-size:10px;font-weight:800;letter-spacing:.6px;padding:3px 7px;border-radius:6px;vertical-align:middle;cursor:pointer;background:var(--card2);color:var(--mut);border:1px solid var(--line)}
+.plan-badge.pro{background:linear-gradient(135deg,#facc15,#f59e0b);color:#1a1300;border-color:transparent}
+.pro-plan[data-plan]{cursor:pointer;transition:transform .15s}
+.pro-plan[data-plan]:active{transform:scale(.98)}
+.pro-plan.sel{border-color:#38bdf8;box-shadow:inset 0 0 0 2px #38bdf8}
+.pp-sel{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:5px;font-size:10px;font-weight:800;background:#38bdf8;color:#04223a;vertical-align:middle}
+.locked .lk-body{display:flex;gap:12px;align-items:center;margin:4px 0 12px}
+.lk-ic{font-size:26px}
+.lk-btn{padding:7px 12px;font-weight:700;color:#1a1300;background:linear-gradient(135deg,#facc15,#f59e0b);border:0}
+.locked .lk-btn{width:100%}
+.lk-inline{padding:12px;border-radius:12px;background:var(--card2);border:1px dashed #a16207;font-size:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:8px}
 .warn{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
 </style>
 </head>
 <body>
 <header>
-  <h1>Kite<span>Check</span></h1>
+  <h1>Kite<span>Check</span> <small id="planBadge" class="plan-badge" onclick="showView('pro')"></small></h1>
   <div class="row">
     <button id="btnRefresh" aria-label="Atualizar">↻</button>
     <button id="btnSettings" aria-label="Configurações">⚙︎</button>
@@ -283,7 +294,7 @@ let spots = store.get("kc_spots", DEFAULT_SPOTS.slice());
 (function(){ const del = store.get("kc_deleted", []);
   DEFAULT_SPOTS.forEach(d => { const s = spots.find(x => x.id === d.id);
     if (!s && del.indexOf(d.id) < 0) spots.push(d); }); })();
-let cfg = Object.assign({weight:75, level:"intermediario", min:12, spot:"k7", kites:[], favs:[]}, store.get("kc_cfg", {}));
+let cfg = Object.assign({weight:75, level:"intermediario", min:12, spot:"k7", kites:[], favs:[], plan:"pro_m"}, store.get("kc_cfg", {}));
 // Pico principal agora é o K7 (Barra da Tijuca): troca o antigo Pepê por ele
 (function(){
   if (spots.some(s => s.id === "pepe")) {
@@ -522,24 +533,25 @@ function render(){
   }
 
 
-  html += dayStoryHTML(hours, idx, spot);
-  html += '<div class="card" id="whereCard"><h2>📍 Onde velejar hoje?' + proTag() + '</h2><div id="whereBody"><span class="spin"></span> Comparando os picos…</div></div>';
+  html += isPro() ? dayStoryHTML(hours, idx, spot) : lockedCard("🧠 Resumo do dia", "Um texto explicando como o vento vai se comportar no dia: quando entra, quando fica mais forte e quando cai.");
+  if (!isPro()) html += lockedCard("📍 Onde velejar hoje?", "Compara seus picos favoritos e mostra qual tem a melhor janela de vento hoje.");
+  else html += '<div class="card" id="whereCard"><h2>📍 Onde velejar hoje?' + proTag() + '</h2><div id="whereBody"><span class="spin"></span> Comparando os picos…</div></div>';
 
   // Equipamento
   if (r.cls !== "none" && ks) {
     const water = cur.sea && cur.sea.sst != null ? cur.sea.sst : cur.temp;
     html += '<div class="card mini"><div class="mi-ic">🪁</div><div><div class="mi-t">Equipamento' + proTag() + '</div>' +
-      '<div class="mi-v">' + (cur.kite ? 'Seu kite mais indicado: <b>' + cur.kite + ' m²</b>' : 'Tamanho estimado: <b>' + ks + ' m²</b>') + '</div>' +
-      '<div class="muted">' + (cur.kite ? 'Estimativa pro seu peso: ' + ks + ' m²' : 'Cadastre seus kites em ⚙︎ pra uma sugestão com o seu equipamento') +
+      '<div class="mi-v">' + ((isPro() && cur.kite) ? 'Seu kite mais indicado: <b>' + cur.kite + ' m²</b>' : 'Tamanho estimado: <b>' + ks + ' m²</b>') + '</div>' +
+      '<div class="muted">' + ((isPro() && cur.kite) ? 'Estimativa pro seu peso: ' + ks + ' m²' : 'Cadastre seus kites em ⚙︎ pra uma sugestão com o seu equipamento') +
       (ksG && ksG < ks - 1 ? ' · nas rajadas, ' + ksG + ' m²' : '') + '. Roupa: ' + wetsuit(water) + '. É uma estimativa: confira os limites do fabricante.</div></div></div>';
   }
 
   // Melhor janela
   lastData.win = win;
-  html += windowCardHTML(hours, idx, spot, win);
+  html += isPro() ? windowCardHTML(hours, idx, spot, win) : lockedCard("⏱️ Melhor janela", "O melhor bloco de horas seguidas pra velejar, com vento, rajadas, direção e kite.");
 
   // Gráfico + próximas horas
-  html += '<div class="card"><h2>📈 Vento nas próximas 24h' + proTag() + '</h2>' + windChart(hours, idx) + '<div class="hours">';
+  html += '<div class="card"><h2>📈 Vento nas próximas 24h' + proTag() + '</h2>' + (isPro() ? windChart(hours, idx) : lockedInline("O gráfico de vento e rajadas")) + '<div class="hours">';
   hours.slice(idx, idx + 24).forEach(h => {
     html += '<div class="h"><div class="muted">' + fmtH(h.date) + '</div><div class="kn">' + h.wind.toFixed(0) + '<small>nós</small></div><div class="hg">raj. ' + h.gust.toFixed(0) + '</div>' +
       '<div class="hd"><span class="arr" style="transform:rotate(' + (h.dir + 180) + 'deg)">↑</span> ' + dirName(h.dir) + '</div><div class="bar" style="background:' + COLORS[h.r.cls] + '"></div><div class="hl">' + LABEL[h.r.cls] + '</div></div>';
@@ -562,7 +574,7 @@ function render(){
       (w ? 'Janela: ' + fmtH(w.start.date) + '–' + fmtH(new Date(w.end.date.getTime() + 3600e3)) + ' (' + w.len + 'h)' : 'sem janela boa') + '</div>' +
       '<div class="pill" style="background:' + COLORS[shown.r.cls] + '">' + LABEL[shown.r.cls] + '</div></div>';
   });
-  html += '</div><div class="card" id="cmpCard"><h2>🏆 Melhor pico' + proTag() + '</h2><div id="cmpBody"><button class="primary" id="btnCmp" style="width:100%">Comparar todos os picos</button></div></div>' +
+  html += '</div><div class="card" id="cmpCard"><h2>🏆 Melhor pico' + proTag() + '</h2>' + (isPro() ? '<div id="cmpBody"><button class="primary" id="btnCmp" style="width:100%">Comparar todos os picos</button></div>' : lockedInline("Comparar todos os picos")) + '</div>' +
     '<div class="warn">Previsão: Open-Meteo (modelos, não medições). O KiteCheck faz uma estimativa automática: sempre confira o mar no local e nunca veleje sozinho.</div>';
   $("#main").innerHTML = html;
   initSea(idx);
@@ -672,7 +684,7 @@ function heroExtra(){
   const d = lastData, out = [], cur = d.hours[d.idx];
   const s = d.sun && d.sun[cur.t.slice(0,10)];
   if (s && s.rise) out.push("☀️ Sol " + s.rise + "–" + s.set + (s.uv != null ? " · UV máx " + s.uv.toFixed(0) + (s.uv >= 8 ? " (passe protetor!)" : "") : ""));
-  if (cur.conf) out.push("📊 Os modelos de previsão " + (cur.conf === "alta" ? "concordam" : cur.conf === "média" ? "concordam em parte" : "discordam") + " (confiança " + cur.conf + ", " + d.nModels + " modelos)");
+  if (cur.conf && isPro()) out.push("📊 Os modelos de previsão " + (cur.conf === "alta" ? "concordam" : cur.conf === "média" ? "concordam em parte" : "discordam") + " (confiança " + cur.conf + ", " + d.nModels + " modelos)");
   return out.map(x => '<div class="kite">' + x + '</div>').join("");
 }
 
@@ -1243,6 +1255,19 @@ function saveSettings(){
 }
 $("#btnSettings").addEventListener("click", () => openSettings(false));
 
+// ---------- Planos (demonstração: troca na hora, nada é cobrado) ----------
+var PLAN_NAMES = {free: "Grátis", pro_m: "Pro mensal", pro_a: "Pro anual"};
+function isPro(){ return cfg.plan !== "free"; }
+function planName(){ return PLAN_NAMES[cfg.plan] || "Pro"; }
+function selTag(p){ return cfg.plan === p ? '<span class="pp-sel">✓ seu plano</span>' : ''; }
+function updatePlanBadge(){ const b = document.getElementById("planBadge"); if (!b) return; b.textContent = isPro() ? "PRO" : "GRÁTIS"; b.classList.toggle("pro", isPro()); }
+function setPlan(p){ cfg.plan = p; store.set("kc_cfg", cfg); updatePlanBadge(); if (lastData) render(); }
+function lockedCard(title, desc){
+  return '<div class="card locked"><h2>' + title + proTag() + '</h2><div class="lk-body"><div class="lk-ic">🔒</div><div><b>Recurso do KiteCheck Pro</b><div class="muted">' + desc + '</div></div></div>' +
+    '<button class="lk-btn" onclick="showView(\'pro\')">Ver o Pro</button></div>';
+}
+function lockedInline(what){ return '<div class="lk-inline"><span>🔒 ' + what + ' é do <b>KiteCheck Pro</b></span><button class="lk-btn" onclick="showView(\'pro\')">Ver o Pro</button></div>'; }
+
 // ---------- KiteCheck Pro (beta: tudo liberado, nada é cobrado) ----------
 function proTag(){ return '<button class="pro-tag" onclick="showView(\'pro\')" aria-label="Recurso Pro">PRO</button>'; }
 function renderProPage(){
@@ -1258,7 +1283,7 @@ function renderProPage(){
     ["Índice de condições","✓","✓"],
     ["Guia de kites","✓","✓"],
     ["Previsão por hora","Básica","Gráfico completo"],
-    ["Seção do mar","Básica","Completa"],
+    ["Seção do mar com onda animada","✓","✓"],
     ["Comparação de picos","Básica","Avançada"],
     ["Resumo do dia em texto","—","✓"],
     ["Onde velejar hoje (seus favoritos)","—","✓"],
@@ -1272,21 +1297,22 @@ function renderProPage(){
     '<div class="pro-hero"><div class="pro-badge">⭐ KITECHECK PRO</div>' +
     '<h2>Veleje mais.<br>Acerte mais suas sessões.</h2>' +
     '<div class="muted">Previsão mais profunda, comparação de picos e alertas pra você não perder a próxima janela boa.</div>' +
-    '<div class="pro-beta">🎉 Durante o beta, o Pro está liberado de graça pra todo mundo.</div></div>' +
+    '<div class="pro-beta">🧪 Modo demonstração: toque num plano pra ver como o app fica em cada um. Nada é cobrado.</div></div>' +
     '<div class="pro-feats">' + feats.map(f => '<div class="pro-feat"><div class="ic">' + f[0] + '</div><b>' + f[1] + '</b><small>' + f[2] + '</small></div>').join("") + '</div>' +
     '<div class="pro-founder">🚀 <b>Preço de fundador:</b> os primeiros 100 assinantes vão pagar <b>R$ 14,90/mês</b> enquanto mantiverem a assinatura.</div>' +
     '<div class="pro-plans">' +
-      '<div class="pro-plan"><div><div class="pp-n">Grátis</div><small>Pra quem quer saber quando e onde velejar</small></div><div class="pp-p">R$ 0</div></div>' +
-      '<div class="pro-plan"><div><div class="pp-n">Pro mensal</div><small>Flexível, cancele quando quiser</small></div><div class="pp-p">R$ 24,90<small>por mês</small></div></div>' +
-      '<div class="pro-plan best"><div><div class="pp-n">Pro anual<span class="pp-tag">MELHOR VALOR</span></div><small>≈ R$ 16,66 por mês · economize 33%</small></div><div class="pp-p">R$ 199,90<small>por ano</small></div></div>' +
+      '<div class="pro-plan' + (cfg.plan === "free" ? ' sel' : '') + '" data-plan="free"><div><div class="pp-n">Grátis' + selTag("free") + '</div><small>Pra quem quer saber quando e onde velejar</small></div><div class="pp-p">R$ 0</div></div>' +
+      '<div class="pro-plan' + (cfg.plan === "pro_m" ? ' sel' : '') + '" data-plan="pro_m"><div><div class="pp-n">Pro mensal' + selTag("pro_m") + '</div><small>Flexível, cancele quando quiser</small></div><div class="pp-p">R$ 24,90<small>por mês</small></div></div>' +
+      '<div class="pro-plan best' + (cfg.plan === "pro_a" ? ' sel' : '') + '" data-plan="pro_a"><div><div class="pp-n">Pro anual<span class="pp-tag">MELHOR VALOR</span>' + selTag("pro_a") + '</div><small>≈ R$ 16,66 por mês · economize 33%</small></div><div class="pp-p">R$ 199,90<small>por ano</small></div></div>' +
     '</div>' +
-    '<button class="pro-cta" id="proCta">Usar o Pro grátis no beta</button>' +
+    '<button class="pro-cta" id="proCta">' + (isPro() ? 'Ver o app no plano ' + planName() : 'Ativar o Pro (grátis no beta)') + '</button>' +
     '<div class="muted pro-note">Assinatura ainda não disponível: os preços são de lançamento previstos e nada é cobrado durante o beta.</div>' +
     '<div class="card"><table class="pro-tbl"><thead><tr><th>Recurso</th><th>Grátis</th><th>Pro</th></tr></thead><tbody>' +
       rows.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td></tr>').join("") +
     '</tbody></table></div>' +
     '<div class="muted pro-note">🛟 Segurança nunca é paga: alertas de perigo, vento terral, tempestades, vento e rajadas continuam grátis pra sempre.</div>';
-  document.getElementById("proCta").addEventListener("click", () => showView("prev"));
+  document.getElementById("proCta").addEventListener("click", () => { if (!isPro()) setPlan("pro_m"); showView("prev"); });
+  document.querySelectorAll(".pro-plan[data-plan]").forEach(el => el.addEventListener("click", () => { setPlan(el.dataset.plan); renderProPage(); }));
 }
 
 // ---------- Navegação (Previsão / Guia) ----------
@@ -1315,6 +1341,7 @@ if (location.hash === "#guia" || location.hash === "#pro") showView(location.has
 
 // Atualiza ao voltar pro app
 document.addEventListener("visibilitychange", () => { if (!document.hidden && lastData && Date.now() - (lastData.fetchedAt || lastData.cachedAt || 0) > 10 * 60e3) load(); });
+updatePlanBadge();
 load();
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 </script>
