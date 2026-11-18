@@ -64,6 +64,49 @@ label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
 #seaScrub{width:100%;margin:12px 0 4px;accent-color:var(--acc)}
 #tideCv{width:100%;height:64px;display:block;margin-top:6px}
 .seagrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}
+dialog#dlg{width:min(96vw,480px);max-height:92vh;padding:0;overflow:hidden;flex-direction:column}
+dialog#dlg[open]{display:flex}
+.st-head{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 10px}
+.st-head h2{margin:0;font-size:22px}
+.st-x{border-radius:50%;width:36px;height:36px;padding:0;font-size:15px}
+.st-tabs{display:flex;gap:6px;padding:0 16px 12px;border-bottom:1px solid var(--line)}
+.st-tab{flex:1;padding:9px 4px;font-size:14px;background:transparent;border-color:transparent;color:var(--mut)}
+.st-tab.on{background:var(--card2);border-color:var(--line);color:var(--txt);font-weight:600}
+.st-body{overflow-y:auto;padding:2px 16px 16px;flex:1;-webkit-overflow-scrolling:touch}
+.st-sec{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:12px}
+.st-sec h3{margin:0 0 8px;font-size:12px;color:var(--mut);font-weight:700;text-transform:uppercase;letter-spacing:.6px}
+.st-big{font-size:28px;font-weight:800;letter-spacing:-.5px}
+.st-big span{color:var(--acc)}
+.st-sec input[type=range]{width:100%;accent-color:var(--acc);padding:0;border:0;background:none;margin:10px 0 4px}
+.st-levels{display:grid;gap:8px}
+.st-lv{text-align:left;display:flex;flex-direction:column;gap:2px;background:var(--card);padding:10px 12px}
+.st-lv small{color:var(--mut);font-size:12px}
+.st-lv.on,.st-chip.on,.st-dir.on{border-color:var(--acc);background:rgba(56,189,248,.2);box-shadow:inset 0 0 0 1px var(--acc)}
+.st-chips{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:8px}
+.st-chip{padding:10px 0;font-weight:700;background:var(--card)}
+.st-compass{position:relative;width:230px;height:230px;margin:8px auto 6px;border-radius:50%;background:radial-gradient(circle,#0c4a6e 0 26%,var(--card) 27%);border:1px solid var(--line)}
+.st-beach{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:30px}
+.st-dir{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%;font-size:13px;font-weight:700;background:var(--card2)}
+.st-needle{position:absolute;left:calc(50% - 3px);top:17%;height:33%;width:6px;border-radius:3px;background:linear-gradient(var(--acc),rgba(56,189,248,0));transform-origin:50% 100%;transition:transform .35s cubic-bezier(.3,1.4,.5,1)}
+.st-center{text-align:center;margin-top:6px}
+.st-sw{display:flex;align-items:center;gap:12px;color:var(--txt);font-size:15px;margin:0;cursor:pointer}
+.st-sw input{display:none}
+.st-sw span{width:48px;height:28px;border-radius:14px;background:var(--line);position:relative;flex:none;transition:background .2s}
+.st-sw span:after{content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left .2s}
+.st-sw input:checked+span{background:var(--great)}
+.st-sw input:checked+span:after{left:23px}
+.st-wide{width:100%;margin-top:10px}
+.st-danger{color:#fca5a5;border-color:#7f1d1d;background:#3b1220}
+.st-foot{display:flex;gap:8px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--card)}
+.st-foot button{flex:1;padding:12px;font-weight:600}
+.g-res{display:flex;gap:14px;align-items:center;margin-top:6px}
+.g-size{font-size:34px;font-weight:800;color:var(--acc);white-space:nowrap}
+.g-table{display:grid;gap:4px}
+.g-row{display:grid;grid-template-columns:1fr 1fr 24px;padding:6px 10px;border-radius:8px;background:var(--card)}
+.g-row.on{background:rgba(56,189,248,.2);box-shadow:inset 0 0 0 1px var(--acc)}
+.g-card{display:flex;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.g-card:first-of-type{border-top:0;padding-top:0}
+.g-ic{font-size:22px;line-height:1.2}
 .warn{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
 </style>
 </head>
@@ -86,41 +129,7 @@ label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
 
 <div id="main"><div class="card hero"><span class="spin"></span> Carregando previsão…</div></div>
 
-<dialog id="dlg">
-  <h2>Configurações</h2>
-  <label>Seu peso (kg)</label>
-  <input id="cfgWeight" type="number" inputmode="numeric" min="30" max="150">
-  <label>Nível</label>
-  <select id="cfgLevel">
-    <option value="iniciante">Iniciante</option>
-    <option value="intermediario">Intermediário</option>
-    <option value="avancado">Avançado</option>
-  </select>
-  <label>Vento mínimo pra você velejar (nós)</label>
-  <input id="cfgMin" type="number" inputmode="numeric" min="5" max="30">
-  <label>Seus kites (m²) — separe por vírgula</label>
-  <input id="cfgKites" type="text" inputmode="decimal" placeholder="ex.: 9, 12">
-  <div class="muted" style="margin-top:4px">Com seus kites cadastrados, a nota diz se dá pra velejar com o SEU equipamento.</div>
-  <hr style="border:0;border-top:1px solid var(--line);margin:16px 0 4px">
-  <h2 style="margin-top:10px">Pico atual</h2>
-  <label>Nome</label>
-  <input id="cfgName" type="text">
-  <label>Para que lado fica o mar (olhando da areia)?</label>
-  <select id="cfgSea">
-    <option value="0">Norte (N)</option><option value="45">Nordeste (NE)</option>
-    <option value="90">Leste (L)</option><option value="135">Sudeste (SE)</option>
-    <option value="180">Sul (S)</option><option value="225">Sudoeste (SO)</option>
-    <option value="270">Oeste (O)</option><option value="315">Noroeste (NO)</option>
-  </select>
-  <div class="muted" style="margin-top:4px">Serve para saber se o vento vem do mar (seguro) ou da terra (offshore, perigoso).</div>
-  <div class="row" style="margin-top:16px;justify-content:space-between">
-    <button id="cfgDelete">Excluir pico</button>
-    <div class="row">
-      <button id="cfgCancel">Cancelar</button>
-      <button class="primary" id="cfgSave">Salvar</button>
-    </div>
-  </div>
-</dialog>
+<dialog id="dlg"></dialog>
 
 <script>
 "use strict";
@@ -600,37 +609,166 @@ $("#btnGps").addEventListener("click", () => {
 
 function alertBox(msg){ $("#spotInfo").textContent = msg; }
 
+// ---------- Ajustes ----------
+var KITE_SIZES = [5,6,7,8,9,10,11,12,13,14,15,17];
+var LEVEL_INFO = {
+  iniciante:    ["🌱 Iniciante",    "Aprendendo a velejar · até 20 nós"],
+  intermediario:["🏄 Intermediário", "Já veleja e faz bordos · até 28 nós"],
+  avancado:     ["🔥 Avançado",     "Manobras e vento forte · até 35 nós"]
+};
+var SEA_DIRS = [[0,"N","Norte"],[45,"NE","Nordeste"],[90,"L","Leste"],[135,"SE","Sudeste"],[180,"S","Sul"],[225,"SO","Sudoeste"],[270,"O","Oeste"],[315,"NO","Noroeste"]];
+var draft = null;
+
 function openSettings(newSpot){
-  const spot = spots.find(s => s.id === cfg.spot);
-  $("#cfgWeight").value = cfg.weight;
-  $("#cfgLevel").value = cfg.level;
-  $("#cfgMin").value = cfg.min;
-  $("#cfgKites").value = (cfg.kites || []).join(", ");
-  $("#cfgName").value = spot ? spot.name : "";
-  $("#cfgSea").value = spot ? String(spot.sea) : "180";
-  $("#dlg").showModal();
-  if (newSpot === true) $("#cfgName").focus();
+  const spot = spots.find(s => s.id === cfg.spot) || {};
+  draft = {weight:cfg.weight, level:cfg.level, min:cfg.min, kites:(cfg.kites || []).slice(), name:spot.name || "",
+           sea:(spot.sea != null ? spot.sea : 180), lagoon:!!spot.lagoon, lat:spot.lat, lon:spot.lon};
+  renderSettings(newSpot === true ? "pico" : "voce");
+  if (!$("#dlg").open) $("#dlg").showModal();
 }
-$("#btnSettings").addEventListener("click", () => openSettings(false));
-$("#cfgCancel").addEventListener("click", () => $("#dlg").close());
-$("#cfgSave").addEventListener("click", () => {
-  cfg.weight = Math.max(30, Math.min(150, +$("#cfgWeight").value || 75));
-  cfg.level = $("#cfgLevel").value;
-  cfg.min = Math.max(5, Math.min(30, +$("#cfgMin").value || 12));
-  cfg.kites = ($("#cfgKites").value.match(/\d+(?:\.\d+)?/g) || []).map(Number).filter(x => x >= 3 && x <= 21).sort((a,b) => a - b);
+
+function stSec(title, body){ return '<section class="st-sec"><h3>' + title + '</h3>' + body + '</section>'; }
+
+function compassHTML(sea){
+  let h = '<div class="st-compass"><div class="st-needle" id="stNeedle" style="transform:rotate(' + sea + 'deg)"></div><div class="st-beach">🏖️</div>';
+  SEA_DIRS.forEach(([deg, ab]) => {
+    const x = 50 + 41 * Math.sin(deg * Math.PI / 180), y = 50 - 41 * Math.cos(deg * Math.PI / 180);
+    h += '<button class="st-dir' + (deg === sea ? ' on' : '') + '" data-sea="' + deg + '" style="left:' + x.toFixed(1) + '%;top:' + y.toFixed(1) + '%">' + ab + '</button>';
+  });
+  return h + '</div>';
+}
+
+function renderSettings(tab){
+  const d = draft;
+  const tabs = [["voce","👤 Você"],["pico","📍 Pico"],["guia","📚 Guia"],["app","⚙️ App"]];
+  let h = '<div class="st-head"><h2>Ajustes</h2><button class="st-x" id="stClose" aria-label="Fechar">✕</button></div>';
+  h += '<div class="st-tabs">' + tabs.map(t => '<button class="st-tab' + (t[0] === tab ? ' on' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>').join("") + '</div><div class="st-body">';
+  if (tab === "voce") {
+    h += stSec("Seu peso", '<div class="st-big"><span id="stW">' + d.weight + '</span> kg</div><input type="range" id="stWeight" min="40" max="130" value="' + d.weight + '">');
+    h += stSec("Seu nível", '<div class="st-levels">' + Object.keys(LEVEL_INFO).map(k => '<button class="st-lv' + (k === d.level ? ' on' : '') + '" data-lv="' + k + '"><b>' + LEVEL_INFO[k][0] + '</b><small>' + LEVEL_INFO[k][1] + '</small></button>').join("") + '</div>');
+    h += stSec("Vento mínimo pra você", '<div class="st-big"><span id="stM">' + d.min + '</span> nós</div><input type="range" id="stMin" min="6" max="20" value="' + d.min + '"><div class="muted">Abaixo disso o app considera o vento fraco demais.</div>');
+    h += stSec("Seus kites (m²)", '<div class="st-chips">' + KITE_SIZES.map(s => '<button class="st-chip' + (d.kites.indexOf(s) >= 0 ? ' on' : '') + '" data-k="' + s + '">' + s + '</button>').join("") + '</div><div class="muted" id="stKsum"></div>');
+  } else if (tab === "pico") {
+    h += stSec("Nome do pico", '<input id="stName" type="text" value="' + esc(d.name) + '">');
+    h += stSec("Para que lado fica o mar?", compassHTML(d.sea) + '<div class="st-center" id="stSeaTxt"></div><div class="muted st-center">Olhando da areia para a água. Serve para saber se o vento vem do mar (seguro) ou da terra (perigoso).</div>');
+    h += stSec("Tipo de pico", '<label class="st-sw"><input type="checkbox" id="stLagoon"' + (d.lagoon ? ' checked' : '') + '><span></span>É lagoa (ondas do oceano não contam)</label>');
+    h += stSec("Localização", '<div class="muted" id="stCoord">' + (d.lat != null ? d.lat.toFixed(4) + ", " + d.lon.toFixed(4) : "–") + '</div><button id="stGpsHere" class="st-wide">📍 Usar minha localização atual neste pico</button>');
+    h += '<button id="stDelete" class="st-wide st-danger" style="margin-top:14px">🗑️ Excluir este pico</button>';
+  } else if (tab === "guia") {
+    h += guideHTML();
+  } else {
+    h += stSec("Picos", '<button id="stRestore" class="st-wide" style="margin-top:0">↩️ Restaurar picos padrão</button><div class="muted" style="margin-top:6px">Traz de volta os picos que você excluiu.</div>');
+    h += stSec("Dados", '<button id="stReset" class="st-wide st-danger" style="margin-top:0">Apagar todas as configurações</button><div class="muted" style="margin-top:6px">Volta tudo ao padrão neste aparelho.</div>');
+    h += stSec("Sobre", '<div class="muted">KiteCheck · previsão do tempo e do mar: Open-Meteo (CC BY 4.0). Use como referência: sempre confira o mar no local e nunca veleje sozinho.</div>');
+  }
+  h += '</div><div class="st-foot"><button id="stCancel">Cancelar</button><button class="primary" id="stSave">Salvar</button></div>';
+  $("#dlg").innerHTML = h;
+  bindSettings(tab);
+}
+
+function bindSettings(tab){
+  const d = draft, dlg = $("#dlg"), q = s => dlg.querySelector(s), qa = s => dlg.querySelectorAll(s);
+  q("#stClose").onclick = () => dlg.close();
+  q("#stCancel").onclick = () => dlg.close();
+  q("#stSave").onclick = saveSettings;
+  qa(".st-tab").forEach(b => b.onclick = () => renderSettings(b.dataset.tab));
+  if (tab === "voce") {
+    const ksum = () => { const lo = Math.round(d.weight * 2.2 / 25), hi = Math.round(d.weight * 2.2 / 12);
+      q("#stKsum").textContent = (d.kites.length ? "Você tem: " + d.kites.join(" · ") + " m². " : "Toque nos tamanhos que você tem. ") +
+        "Com " + d.weight + " kg, entre 12 e 25 nós se usa de " + lo + " a " + hi + " m²."; };
+    q("#stWeight").oninput = e => { d.weight = +e.target.value; q("#stW").textContent = d.weight; ksum(); };
+    q("#stMin").oninput = e => { d.min = +e.target.value; q("#stM").textContent = d.min; };
+    qa(".st-lv").forEach(b => b.onclick = () => { d.level = b.dataset.lv; qa(".st-lv").forEach(x => x.classList.toggle("on", x === b)); });
+    qa(".st-chip").forEach(b => b.onclick = () => { const k = +b.dataset.k, i = d.kites.indexOf(k);
+      if (i >= 0) d.kites.splice(i, 1); else d.kites.push(k); d.kites.sort((a, c) => a - c); b.classList.toggle("on", i < 0); ksum(); });
+    ksum();
+  } else if (tab === "pico") {
+    const seaTxt = () => { const s = SEA_DIRS.find(x => x[0] === d.sea); q("#stSeaTxt").innerHTML = "🌊 O mar fica para o <b>" + (s ? s[2] : d.sea + "°") + "</b>"; };
+    qa(".st-dir").forEach(b => b.onclick = () => { d.sea = +b.dataset.sea; qa(".st-dir").forEach(x => x.classList.toggle("on", x === b)); q("#stNeedle").style.transform = "rotate(" + d.sea + "deg)"; seaTxt(); });
+    seaTxt();
+    q("#stName").oninput = e => { d.name = e.target.value; };
+    q("#stLagoon").onchange = e => { d.lagoon = e.target.checked; };
+    q("#stGpsHere").onclick = () => {
+      if (!navigator.geolocation) { q("#stCoord").textContent = "Seu navegador não permite localização."; return; }
+      q("#stCoord").textContent = "Pegando sua localização…";
+      navigator.geolocation.getCurrentPosition(p => { d.lat = +p.coords.latitude.toFixed(4); d.lon = +p.coords.longitude.toFixed(4); q("#stCoord").textContent = d.lat + ", " + d.lon + " (toque em Salvar para aplicar)"; },
+        () => { q("#stCoord").textContent = "Não consegui sua localização (permita em Ajustes › Safari)."; }, {enableHighAccuracy:true, timeout:15000});
+    };
+    q("#stDelete").onclick = function(){
+      if (spots.length <= 1) return;
+      if (this.dataset.ok !== "1") { this.dataset.ok = "1"; this.textContent = "Toque de novo para confirmar a exclusão"; return; }
+      const del = store.get("kc_deleted", []); del.push(cfg.spot); store.set("kc_deleted", del);
+      spots = spots.filter(s => s.id !== cfg.spot); cfg.spot = spots[0].id;
+      store.set("kc_spots", spots); store.set("kc_cfg", cfg); dlg.close(); load();
+    };
+  } else if (tab === "guia") {
+    bindGuide(q);
+  } else {
+    q("#stRestore").onclick = () => { store.set("kc_deleted", []);
+      DEFAULT_SPOTS.forEach(d0 => { if (!spots.find(s => s.id === d0.id)) spots.push(Object.assign({}, d0)); });
+      store.set("kc_spots", spots); dlg.close(); load(); };
+    q("#stReset").onclick = function(){
+      if (this.dataset.ok !== "1") { this.dataset.ok = "1"; this.textContent = "Toque de novo para apagar tudo"; return; }
+      ["kc_spots","kc_cfg","kc_deleted","kc_last"].forEach(k => { try { localStorage.removeItem(k); } catch(e){} });
+      location.reload();
+    };
+  }
+}
+
+// ---------- Guia de kites ----------
+var GUIDE_SIT = [
+  ["🍃","Vento fraco (8–12 nós)","Use seu maior kite e uma prancha maior. Abaixo de 10 nós, só com foil. Foil kites (sem câmaras de ar) brilham aqui."],
+  ["👌","Vento médio (12–20 nós)","A faixa mais gostosa: kite médio, puxada constante. Ideal pra aprender e evoluir."],
+  ["💨","Vento forte (20–28 nós)","Kite pequeno. Na dúvida entre dois tamanhos, vá sempre no menor."],
+  ["🌪️","Vento rajado","Escolha pelo vento das rajadas, não pela média: kite menor e mão no depower. Iniciantes devem evitar."],
+  ["🌊","Mar com ondas","Kites de onda (wave) têm drift: ficam parados no céu enquanto você surfa. Use um tamanho um pouco menor."],
+  ["🏞️","Lagoa / água lisa","Perfeito pra aprender e pra freestyle. Kites híbridos ou C dão mais pop nos saltos."],
+  ["⛈️","Frente fria / chuva","Vento muda de força e direção de repente. Saia da água se vir nuvem escura chegando ou ouvir trovão."],
+  ["🏠","Vento terral (offshore)","Te empurra pro alto-mar. Não entre, a não ser com barco de apoio."]
+];
+var GUIDE_TYPES = [
+  ["Bow / SLE","Muito depower e relança fácil. Ótimo pra iniciantes e vento variado."],
+  ["Delta","Relança muito fácil e tem faixa de vento enorme. Comum em escolas."],
+  ["Híbrido","Meio-termo: estável e com bom pop. O mais versátil (all-round)."],
+  ["C-kite","Puxada direta e pop forte pra manobras. Pouco depower: pra avançados."],
+  ["Wave","Feito pra ondas: drift, giro rápido e estabilidade."],
+  ["Foil kite","Sem câmaras de ar, sobe com pouquíssimo vento. Mais difícil de relançar na água."]
+];
+function guideSize(w, kg){ return Math.max(4, Math.min(19, Math.round(kg * 2.2 / w))); }
+function guideHTML(){
+  const d = draft, gw = d.guideWind || 16;
+  let h = stSec("Qual kite pra esse vento?", '<div class="st-big"><span id="gW">' + gw + '</span> nós</div><input type="range" id="gWind" min="8" max="35" value="' + gw + '"><div id="gOut"></div>');
+  h += stSec("Tabela pra " + d.weight + " kg", '<div id="gTable"></div><div class="muted" style="margin-top:6px">Valores aproximados pra prancha bidirecional (twin-tip). ✓ = você tem um kite desse tamanho (±1 m²).</div>');
+  h += stSec("Cada situação", GUIDE_SIT.map(s => '<div class="g-card"><div class="g-ic">' + s[0] + '</div><div><b>' + s[1] + '</b><div class="muted">' + s[2] + '</div></div></div>').join(""));
+  h += stSec("Tipos de kite", GUIDE_TYPES.map(s => '<div class="g-card"><div><b>' + s[0] + '</b><div class="muted">' + s[1] + '</div></div></div>').join(""));
+  return h;
+}
+function bindGuide(q){
+  const d = draft, winds = [10,12,14,16,18,20,22,25,28,32];
+  const draw = () => {
+    const gw = d.guideWind || 16, sz = guideSize(gw, d.weight), L = LEVELS[d.level];
+    const has = d.kites.filter(k => Math.abs(k - sz) <= 1);
+    let tip = gw < 12 ? "Vento fraco: kite grande e prancha grande (ou foil)." : gw <= 20 ? "Faixa ideal pra maioria das pessoas." : gw <= 28 ? "Vento forte: na dúvida, vá no menor." : "Muito forte: só pra avançados.";
+    if (gw > L.max) tip += " ⚠️ Acima do limite do seu nível (" + L.max + " nós).";
+    q("#gOut").innerHTML = '<div class="g-res"><div class="g-size">' + sz + ' m²</div><div>' + tip + '<br><span class="muted">' +
+      (d.kites.length ? (has.length ? "✅ Você tem: " + has.join(" ou ") + " m²." : "❌ Nenhum dos seus kites serve bem (você tem " + d.kites.join(", ") + " m²).") : "Marque seus kites na aba Você.") + '</span></div></div>';
+    const near = Math.min(...winds.map(x => Math.abs(x - gw)));
+    q("#gTable").innerHTML = '<div class="g-table">' + winds.map(w => { const s = guideSize(w, d.weight), ok = d.kites.some(k => Math.abs(k - s) <= 1);
+      return '<div class="g-row' + (Math.abs(w - gw) === near ? ' on' : '') + '"><span>' + w + ' nós</span><b>' + s + ' m²</b><span>' + (ok ? "✓" : "") + '</span></div>'; }).join("") + '</div>';
+  };
+  q("#gWind").oninput = e => { d.guideWind = +e.target.value; q("#gW").textContent = d.guideWind; draw(); };
+  draw();
+}
+
+function saveSettings(){
+  const d = draft;
+  cfg.weight = Math.max(30, Math.min(150, d.weight)); cfg.level = d.level; cfg.min = d.min; cfg.kites = d.kites.slice();
   const spot = spots.find(s => s.id === cfg.spot);
-  if (spot) { spot.name = $("#cfgName").value.trim() || spot.name; spot.sea = +$("#cfgSea").value; }
+  if (spot) { spot.name = (d.name || "").trim() || spot.name; spot.sea = d.sea; spot.lagoon = d.lagoon; if (d.lat != null) { spot.lat = d.lat; spot.lon = d.lon; } }
   store.set("kc_cfg", cfg); store.set("kc_spots", spots);
   $("#dlg").close(); load();
-});
-$("#cfgDelete").addEventListener("click", () => {
-  if (spots.length <= 1) return;
-  const del = store.get("kc_deleted", []); del.push(cfg.spot); store.set("kc_deleted", del);
-  spots = spots.filter(s => s.id !== cfg.spot);
-  cfg.spot = spots[0].id;
-  store.set("kc_spots", spots); store.set("kc_cfg", cfg);
-  $("#dlg").close(); load();
-});
+}
+$("#btnSettings").addEventListener("click", () => openSettings(false));
 
 // Atualiza ao voltar pro app
 document.addEventListener("visibilitychange", () => { if (!document.hidden && lastData) load(); });
