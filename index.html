@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KiteCheck">
+<meta name="theme-color" content="#06283d">
+<title>KiteCheck</title>
+<style>
+:root{
+  --bg:#041e30;--card:#0a2e47;--card2:#0e3a59;--line:#16486b;--txt:#e8f4fb;--mut:#8fb3c9;
+  --great:#22c55e;--good:#84cc16;--ok:#facc15;--bad:#f97316;--danger:#ef4444;--none:#475569;--acc:#38bdf8;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+body{padding:calc(env(safe-area-inset-top) + 10px) 14px calc(env(safe-area-inset-bottom) + 24px)}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+h1{font-size:24px;margin:0;letter-spacing:-.3px}
+h1 span{color:var(--acc)}
+button{font:inherit;color:inherit;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:9px 12px;cursor:pointer}
+button.primary{background:var(--acc);color:#04223a;border:0;font-weight:600}
+select,input{font:inherit;color:var(--txt);background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:9px 10px;width:100%}
+.row{display:flex;gap:8px;align-items:center}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;margin-bottom:12px}
+.muted{color:var(--mut);font-size:13px}
+.hero{text-align:center;padding:18px 14px}
+.badge{display:inline-block;padding:6px 14px;border-radius:999px;font-weight:700;font-size:15px;color:#04150f}
+.score{font-size:64px;font-weight:800;line-height:1;margin:10px 0 4px;letter-spacing:-2px}
+.verdict{font-size:20px;font-weight:700;margin-bottom:6px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.stat{background:var(--card2);border-radius:12px;padding:8px 4px;text-align:center}
+.stat b{display:block;font-size:18px}
+.stat small{color:var(--mut);font-size:11px}
+.reasons{list-style:none;padding:0;margin:12px 0 0;text-align:left;font-size:14px}
+.reasons li{padding:5px 0;border-top:1px solid var(--line)}
+.kite{margin-top:10px;font-size:14px}
+h2{font-size:16px;margin:0 0 10px}
+.hours{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x mandatory}
+.h{flex:0 0 54px;text-align:center;background:var(--card2);border-radius:12px;padding:6px 2px;scroll-snap-align:start;font-size:12px}
+.h .bar{height:6px;border-radius:3px;margin:5px 6px}
+.h .kn{font-size:16px;font-weight:700}
+.h .arr{display:inline-block;font-size:14px}
+.day{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.day:first-of-type{border-top:0}
+.day .dn{width:52px;font-weight:600;text-transform:capitalize}
+.day .info{flex:1;font-size:13px;color:var(--mut)}
+.day .info b{color:var(--txt)}
+.pill{min-width:76px;text-align:center;border-radius:999px;padding:4px 8px;font-size:12px;font-weight:700;color:#04150f}
+.legend{display:flex;flex-wrap:wrap;gap:6px;font-size:11px;margin-top:8px}
+.legend span{padding:2px 8px;border-radius:999px;color:#04150f;font-weight:600}
+dialog{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:18px;width:min(94vw,460px);padding:16px}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+.err{background:#3b1220;border-color:#7f1d1d}
+.spin{display:inline-block;width:18px;height:18px;border:3px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:s 1s linear infinite;vertical-align:middle}
+@keyframes s{to{transform:rotate(360deg)}}
+.warn{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Kite<span>Check</span></h1>
+  <div class="row">
+    <button id="btnRefresh" aria-label="Atualizar">↻</button>
+    <button id="btnSettings" aria-label="Configurações">⚙︎</button>
+  </div>
+</header>
+
+<div class="card" style="padding:10px">
+  <div class="row">
+    <select id="spot" aria-label="Pico"></select>
+    <button id="btnGps" title="Usar minha localização">📍</button>
+  </div>
+  <div class="muted" id="spotInfo" style="margin-top:6px"></div>
+</div>
+
+<div id="main"><div class="card hero"><span class="spin"></span> Carregando previsão…</div></div>
+
+<dialog id="dlg">
+  <h2>Configurações</h2>
+  <label>Seu peso (kg)</label>
+  <input id="cfgWeight" type="number" inputmode="numeric" min="30" max="150">
+  <label>Nível</label>
+  <select id="cfgLevel">
+    <option value="iniciante">Iniciante</option>
+    <option value="intermediario">Intermediário</option>
+    <option value="avancado">Avançado</option>
+  </select>
+  <label>Vento mínimo pra você velejar (nós)</label>
+  <input id="cfgMin" type="number" inputmode="numeric" min="5" max="30">
+  <hr style="border:0;border-top:1px solid var(--line);margin:16px 0 4px">
+  <h2 style="margin-top:10px">Pico atual</h2>
+  <label>Nome</label>
+  <input id="cfgName" type="text">
+  <label>Para que lado fica o mar (olhando da areia)?</label>
+  <select id="cfgSea">
+    <option value="0">Norte (N)</option><option value="45">Nordeste (NE)</option>
+    <option value="90">Leste (L)</option><option value="135">Sudeste (SE)</option>
+    <option value="180">Sul (S)</option><option value="225">Sudoeste (SO)</option>
+    <option value="270">Oeste (O)</option><option value="315">Noroeste (NO)</option>
+  </select>
+  <div class="muted" style="margin-top:4px">Serve para saber se o vento vem do mar (seguro) ou da terra (offshore, perigoso).</div>
+  <div class="row" style="margin-top:16px;justify-content:space-between">
+    <button id="cfgDelete">Excluir pico</button>
+    <div class="row">
+      <button id="cfgCancel">Cancelar</button>
+      <button class="primary" id="cfgSave">Salvar</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+
+// Ícone do app (desenhado na hora, para a Tela de Início)
+(function(){try{
+  const c=document.createElement("canvas");c.width=c.height=180;const g=c.getContext("2d");
+  g.fillStyle="#082f49";g.fillRect(0,0,180,180);
+  g.fillStyle="#facc15";g.beginPath();g.arc(90,65,55,Math.PI,0);g.fill();
+  g.strokeStyle="#fff";g.lineWidth=3;g.beginPath();g.moveTo(40,65);g.lineTo(90,120);g.lineTo(140,65);g.moveTo(90,65);g.lineTo(90,120);g.stroke();
+  g.strokeStyle="#38bdf8";g.lineWidth=8;
+  [130,152].forEach(y=>{g.beginPath();for(let x=0;x<=180;x+=2)g.lineTo(x,y+Math.sin(x/18)*6);g.stroke();});
+  const u=c.toDataURL("image/png");
+  ["apple-touch-icon","icon"].forEach(r=>{const l=document.createElement("link");l.rel=r;l.href=u;document.head.appendChild(l);});
+}catch(e){}})();
+// ---------- Picos pré-cadastrados (orientação do mar aproximada; ajuste em ⚙︎) ----------
+const DEFAULT_SPOTS = [
+  {id:"pepe",  name:"Barra da Tijuca (Pepê) – RJ", lat:-23.0145, lon:-43.3440, sea:180},
+  {id:"recreio",name:"Recreio – RJ",               lat:-23.0280, lon:-43.4650, sea:180},
+  {id:"arraial",name:"Arraial do Cabo (Praia Grande) – RJ", lat:-22.9720, lon:-42.0340, sea:180},
+  {id:"cabofrio",name:"Cabo Frio (Praia do Forte) – RJ", lat:-22.8890, lon:-42.0150, sea:135},
+  {id:"buzios", name:"Búzios (Praia Rasa) – RJ",   lat:-22.7330, lon:-41.9580, sea:90},
+  {id:"cumbuco",name:"Cumbuco – CE",               lat:-3.6270,  lon:-38.7290, sea:45},
+  {id:"jeri",   name:"Jericoacoara – CE",          lat:-2.7950,  lon:-40.5130, sea:0}
+];
+const LEVELS = {
+  iniciante:    {max:20, gustDelta:8,  wave:1.0},
+  intermediario:{max:28, gustDelta:12, wave:2.0},
+  avancado:     {max:35, gustDelta:15, wave:3.5}
+};
+const COLORS = {great:"var(--great)",good:"var(--good)",ok:"var(--ok)",bad:"var(--bad)",danger:"var(--danger)",none:"var(--none)"};
+const LABEL  = {great:"Ótimo",good:"Bom",ok:"Regular",bad:"Ruim",danger:"Perigoso",none:"Noite"};
+const DIRS = ["N","NNE","NE","ENE","L","ELE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"];
+
+// ---------- Armazenamento seguro ----------
+const store = {
+  get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+};
+let spots = store.get("kc_spots", DEFAULT_SPOTS);
+let cfg = Object.assign({weight:75, level:"intermediario", min:12, spot:"pepe"}, store.get("kc_cfg", {}));
+let lastData = null;
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const dirName = deg => DIRS[Math.round(((deg%360)+360)%360/22.5)%16];
+const angDiff = (a,b) => {const d=Math.abs(((a-b)%360+540)%360-180);return d;};
+
+// ---------- Avaliação de uma hora ----------
+function rate(h, spot){
+  const L = LEVELS[cfg.level];
+  const reasons = [];
+  let score = 100, danger = false;
+
+  if (!h.isDay) return {score:0, cls:"none", reasons:["Está de noite — não dá pra velejar."]};
+
+  // Tempestade / raios
+  if (h.code >= 95) { danger = true; reasons.push("⛈️ Risco de trovoada/raios — NÃO entre na água."); }
+
+  // Vento médio
+  const w = h.wind;
+  if (w < cfg.min - 3)      { score -= 80; reasons.push(`💨 Vento fraco demais (${w.toFixed(0)} nós).`); }
+  else if (w < cfg.min)     { score -= 45; reasons.push(`💨 Vento no limite (${w.toFixed(0)} nós) — só com kite grande ou foil.`); }
+  else if (w <= L.max)      { reasons.push(`✅ Vento bom: ${w.toFixed(0)} nós.`); if (w >= 15 && w <= 24) score += 0; else score -= 8; }
+  else if (w <= L.max + 5)  { score -= 40; reasons.push(`⚠️ Vento forte para o seu nível (${w.toFixed(0)} nós).`); }
+  else                      { danger = true; reasons.push(`🚫 Vento muito forte (${w.toFixed(0)} nós).`); }
+
+  // Rajadas
+  const gd = h.gust - w;
+  if (gd > L.gustDelta + 6)      { score -= 40; reasons.push(`🌪️ Muito rajado (rajadas de ${h.gust.toFixed(0)} nós).`); if (h.gust > L.max + 8) danger = true; }
+  else if (gd > L.gustDelta)     { score -= 20; reasons.push(`⚠️ Rajado: rajadas até ${h.gust.toFixed(0)} nós.`); }
+  else if (w >= cfg.min)         { reasons.push(`👍 Vento constante (rajadas ${h.gust.toFixed(0)} nós).`); }
+
+  // Direção vs. praia
+  const a = angDiff(h.dir, spot.sea);   // 0 = vem direto do mar
+  const dn = dirName(h.dir);
+  if (a <= 25)        { score -= 15; reasons.push(`↘️ Vento ${dn} onshore (de frente pro mar): seguro, mas difícil de sair.`); }
+  else if (a <= 100)  { reasons.push(`✅ Direção ${dn} lateral (side/side-on): ideal.`); }
+  else if (a <= 135)  { score -= 35; reasons.push(`⚠️ Direção ${dn} side-off: vento saindo da terra, cuidado.`); }
+  else                { danger = true; reasons.push(`🚫 Vento ${dn} OFFSHORE (vem da terra): te leva pro alto-mar.`); }
+
+  // Chuva
+  if (h.rain >= 70)      { score -= 20; reasons.push(`🌧️ Chuva provável (${h.rain}%).`); }
+  else if (h.rain >= 40) { score -= 8;  reasons.push(`🌦️ Chance de chuva ${h.rain}%.`); }
+
+  // Ondas
+  if (h.wave != null) {
+    if (h.wave > L.wave + 1)   { score -= 30; reasons.push(`🌊 Mar grande (${h.wave.toFixed(1)} m) para o seu nível.`); }
+    else if (h.wave > L.wave)  { score -= 12; reasons.push(`🌊 Ondas de ${h.wave.toFixed(1)} m.`); }
+  }
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  if (danger) score = Math.min(score, 15);
+  const cls = danger ? "danger" : score >= 80 ? "great" : score >= 62 ? "good" : score >= 42 ? "ok" : "bad";
+  return {score, cls, reasons};
+}
+
+function kiteSize(wind){
+  if (wind < 8) return null;
+  const s = cfg.weight / wind * 2.2;
+  return Math.max(5, Math.min(17, Math.round(s)));
+}
+function wetsuit(t){
+  if (t >= 26) return "lycra/sem roupa";
+  if (t >= 23) return "shorty ou long john 2 mm";
+  if (t >= 19) return "roupa 3/2 mm";
+  return "roupa 4/3 mm";
+}
+
+// ---------- Busca dos dados (Open-Meteo, grátis e sem chave) ----------
+async function load(){
+  const spot = spots.find(s => s.id === cfg.spot) || spots[0];
+  if (!spot) { $("#main").innerHTML = `<div class="card">Nenhum pico cadastrado. Toque em 📍 para adicionar sua localização.</div>`; return; }
+  cfg.spot = spot.id; store.set("kc_cfg", cfg);
+  renderSpotSelect();
+  $("#spotInfo").textContent = `Mar para ${dirName(spot.sea)} · ${spot.lat.toFixed(3)}, ${spot.lon.toFixed(3)}`;
+  $("#main").innerHTML = `<div class="card hero"><span class="spin"></span> Carregando previsão…</div>`;
+
+  const base = `latitude=${spot.lat}&longitude=${spot.lon}&timezone=auto&forecast_days=7`;
+  const wUrl = `https://api.open-meteo.com/v1/forecast?${base}&hourly=temperature_2m,precipitation_probability,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day&wind_speed_unit=kn`;
+  const mUrl = `https://marine-api.open-meteo.com/v1/marine?${base}&hourly=wave_height`;
+  try{
+    const [wr, mr] = await Promise.all([
+      fetch(wUrl).then(r => { if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); }),
+      fetch(mUrl).then(r => r.ok ? r.json() : null).catch(() => null)
+    ]);
+    const H = wr.hourly, waves = {};
+    if (mr && mr.hourly) mr.hourly.time.forEach((t,i) => waves[t] = mr.hourly.wave_height[i]);
+    const hours = H.time.map((t,i) => ({
+      t, date:new Date(t), wind:H.wind_speed_10m[i] ?? 0, gust:H.wind_gusts_10m[i] ?? 0, dir:H.wind_direction_10m[i] ?? 0,
+      temp:H.temperature_2m[i], rain:H.precipitation_probability[i] ?? 0, code:H.weather_code[i] ?? 0,
+      isDay:H.is_day[i] === 1, wave: waves[t] ?? null
+    }));
+    hours.forEach(h => h.r = rate(h, spot));
+    lastData = {spot, hours, utcOffset: wr.utc_offset_seconds};
+    store.set("kc_cache_"+spot.id, {saved:Date.now()});
+    render();
+  }catch(e){
+    $("#main").innerHTML = `<div class="card err">Não consegui baixar a previsão. Verifique sua internet e toque em ↻.<div class="muted" style="margin-top:6px">${esc(e.message)}</div></div>`;
+  }
+}
+
+// "Agora" no fuso do pico
+function nowKey(offsetSec){
+  const d = new Date(Date.now() + offsetSec*1000);
+  return d.toISOString().slice(0,13) + ":00";
+}
+
+function render(){
+  const {spot, hours, utcOffset} = lastData;
+  const nk = nowKey(utcOffset);
+  let idx = hours.findIndex(h => h.t === nk); if (idx < 0) idx = 0;
+  const cur = hours[idx];
+  const r = cur.r;
+  const ks = kiteSize(cur.wind);
+
+  const verdictTxt = {
+    great:"Tá bombando! Bora velejar 🪁", good:"Tá bom pra kite!", ok:"Dá pra ir, mas não é o ideal",
+    bad:"Tá ruim pra kite", danger:"Perigoso — fica na areia", none:"Agora é noite"
+  }[r.cls];
+
+  // Próxima janela boa
+  let next = null;
+  for (let i = idx; i < hours.length; i++) if (hours[i].r.score >= 62 && hours[i].r.cls !== "danger") { next = hours[i]; break; }
+  const nextTxt = next ? (next === cur ? "Condição boa agora mesmo." : `Próxima janela boa: <b>${fmtDay(next.date)} às ${fmtH(next.date)}</b> (${next.wind.toFixed(0)} nós).`) : "Nenhuma janela boa nos próximos 7 dias.";
+
+  let html = `
+  <div class="card hero">
+    <span class="badge" style="background:${COLORS[r.cls]}">${LABEL[r.cls]}</span>
+    <div class="score" style="color:${COLORS[r.cls]}">${r.cls==="none"?"–":r.score}</div>
+    <div class="verdict">${verdictTxt}</div>
+    <div class="muted">Agora · ${fmtH(cur.date)}</div>
+    <div class="stats">
+      <div class="stat"><b>${cur.wind.toFixed(0)}</b><small>vento (nós)</small></div>
+      <div class="stat"><b>${cur.gust.toFixed(0)}</b><small>rajada (nós)</small></div>
+      <div class="stat"><b><span class="arr" style="transform:rotate(${cur.dir+180}deg)">↑</span> ${dirName(cur.dir)}</b><small>direção</small></div>
+      <div class="stat"><b>${cur.temp!=null?cur.temp.toFixed(0)+"°":"–"}</b><small>temperatura</small></div>
+      <div class="stat"><b>${cur.rain}%</b><small>chuva</small></div>
+      <div class="stat"><b>${cur.wave!=null?cur.wave.toFixed(1)+" m":"–"}</b><small>ondas</small></div>
+    </div>
+    <ul class="reasons">${r.reasons.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
+    ${ks && r.cls!=="none" ? `<div class="kite">🪁 Kite sugerido: <b>${ks} m²</b> · Roupa: <b>${wetsuit(cur.temp)}</b></div>` : ""}
+    <div class="kite">${nextTxt}</div>
+  </div>`;
+
+  // Próximas horas (24h)
+  html += `<div class="card"><h2>Próximas horas</h2><div class="hours">`;
+  hours.slice(idx, idx+24).forEach(h => {
+    html += `<div class="h"><div class="muted">${fmtH(h.date)}</div>
+      <div class="kn">${h.wind.toFixed(0)}</div>
+      <div class="muted">${h.gust.toFixed(0)}</div>
+      <span class="arr" style="transform:rotate(${h.dir+180}deg)">↑</span>
+      <div class="bar" style="background:${COLORS[h.r.cls]}"></div></div>`;
+  });
+  html += `</div><div class="muted">Vento médio / rajada em nós · seta = para onde o vento sopra</div>
+  <div class="legend">${["great","good","ok","bad","danger"].map(c=>`<span style="background:${COLORS[c]}">${LABEL[c]}</span>`).join("")}</div></div>`;
+
+  // Próximos 7 dias: melhor janela de cada dia
+  const days = {};
+  hours.forEach(h => { const k = h.t.slice(0,10); (days[k] = days[k] || []).push(h); });
+  html += `<div class="card"><h2>Próximos dias</h2>`;
+  Object.values(days).forEach(list => {
+    const day = list.filter(h => h.isDay);
+    if (!day.length) return;
+    const best = day.reduce((a,b) => b.r.score > a.r.score ? b : a);
+    const good = day.filter(h => h.r.score >= 62 && h.r.cls !== "danger");
+    const win = good.length ? `${fmtH(good[0].date)}–${fmtH(new Date(good[good.length-1].date.getTime()+3600e3))}` : "sem janela boa";
+    html += `<div class="day">
+      <div class="dn">${fmtDay(list[0].date)}</div>
+      <div class="info"><b>${best.wind.toFixed(0)} nós</b> ${dirName(best.dir)} · rajada ${best.gust.toFixed(0)}<br>${good.length ? "Melhor: "+win : win}</div>
+      <div class="pill" style="background:${COLORS[best.r.cls]}">${LABEL[best.r.cls]}</div>
+    </div>`;
+  });
+  html += `</div><div class="warn">Previsão: Open-Meteo. Use como referência — sempre confira o mar no local e nunca veleje sozinho.</div>`;
+  $("#main").innerHTML = html;
+}
+
+// Horários vêm no fuso do pico; o objeto Date é interpretado como local, então formatamos direto da string
+function fmtH(d){ return String(d.getHours()).padStart(2,"0")+"h"; }
+function fmtDay(d){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dd = new Date(d); dd.setHours(0,0,0,0);
+  const diff = Math.round((dd - today)/864e5);
+  if (diff === 0) return "Hoje";
+  if (diff === 1) return "Amanhã";
+  return d.toLocaleDateString("pt-BR",{weekday:"short"}).replace(".","");
+}
+
+// ---------- UI ----------
+function renderSpotSelect(){
+  $("#spot").innerHTML = spots.map(s => `<option value="${esc(s.id)}"${s.id===cfg.spot?" selected":""}>${esc(s.name)}</option>`).join("");
+}
+$("#spot").addEventListener("change", e => { cfg.spot = e.target.value; load(); });
+$("#btnRefresh").addEventListener("click", load);
+
+$("#btnGps").addEventListener("click", () => {
+  if (!navigator.geolocation) { alertBox("Seu navegador não permite localização."); return; }
+  $("#spotInfo").innerHTML = `<span class="spin"></span> Pegando sua localização…`;
+  navigator.geolocation.getCurrentPosition(p => {
+    const id = "gps"+Date.now();
+    spots.push({id, name:"Meu pico", lat:+p.coords.latitude.toFixed(4), lon:+p.coords.longitude.toFixed(4), sea:180});
+    store.set("kc_spots", spots);
+    cfg.spot = id; store.set("kc_cfg", cfg);
+    load().then(() => openSettings(true));
+  }, err => { $("#spotInfo").textContent = "Não consegui sua localização (permita o acesso em Ajustes › Safari)."; }, {enableHighAccuracy:true, timeout:15000});
+});
+
+function alertBox(msg){ $("#spotInfo").textContent = msg; }
+
+function openSettings(newSpot){
+  const spot = spots.find(s => s.id === cfg.spot);
+  $("#cfgWeight").value = cfg.weight;
+  $("#cfgLevel").value = cfg.level;
+  $("#cfgMin").value = cfg.min;
+  $("#cfgName").value = spot ? spot.name : "";
+  $("#cfgSea").value = spot ? String(spot.sea) : "180";
+  $("#dlg").showModal();
+  if (newSpot === true) $("#cfgName").focus();
+}
+$("#btnSettings").addEventListener("click", () => openSettings(false));
+$("#cfgCancel").addEventListener("click", () => $("#dlg").close());
+$("#cfgSave").addEventListener("click", () => {
+  cfg.weight = Math.max(30, Math.min(150, +$("#cfgWeight").value || 75));
+  cfg.level = $("#cfgLevel").value;
+  cfg.min = Math.max(5, Math.min(30, +$("#cfgMin").value || 12));
+  const spot = spots.find(s => s.id === cfg.spot);
+  if (spot) { spot.name = $("#cfgName").value.trim() || spot.name; spot.sea = +$("#cfgSea").value; }
+  store.set("kc_cfg", cfg); store.set("kc_spots", spots);
+  $("#dlg").close(); load();
+});
+$("#cfgDelete").addEventListener("click", () => {
+  if (spots.length <= 1) return;
+  spots = spots.filter(s => s.id !== cfg.spot);
+  cfg.spot = spots[0].id;
+  store.set("kc_spots", spots); store.set("kc_cfg", cfg);
+  $("#dlg").close(); load();
+});
+
+// Atualiza ao voltar pro app
+document.addEventListener("visibilitychange", () => { if (!document.hidden && lastData) load(); });
+load();
+</script>
+</body>
+</html>
