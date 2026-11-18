@@ -200,6 +200,13 @@ dialog#dlg[open]{display:flex}
 .cmp-wrap{text-align:center;flex:none}
 .cmp-wrap svg{width:118px;height:118px;display:block}
 .cmp-l{font-size:12px;font-weight:700;margin-top:2px}
+.arr{display:inline-block}
+.h{flex:0 0 64px}
+.kn small{font-size:9px;color:var(--mut);margin-left:2px;font-weight:600}
+.hg{font-size:11px;color:#fdba74}
+.hd{font-size:11px;margin-top:2px;white-space:nowrap}
+.hl{font-size:9px;color:var(--mut);margin-top:3px}
+.share-btn{width:100%;margin-top:12px;font-weight:700;background:rgba(37,211,102,.12);border-color:rgba(37,211,102,.5);color:#bbf7d0}
 .warn{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
 </style>
 </head>
@@ -275,7 +282,7 @@ const store = {
 let spots = store.get("kc_spots", DEFAULT_SPOTS.slice());
 (function(){ const del = store.get("kc_deleted", []);
   DEFAULT_SPOTS.forEach(d => { const s = spots.find(x => x.id === d.id);
-    if (!s && del.indexOf(d.id) < 0) spots.push(d); else if (s && d.lagoon) s.lagoon = true; }); })();
+    if (!s && del.indexOf(d.id) < 0) spots.push(d); }); })();
 let cfg = Object.assign({weight:75, level:"intermediario", min:12, spot:"k7", kites:[], favs:[]}, store.get("kc_cfg", {}));
 // Pico principal agora é o K7 (Barra da Tijuca): troca o antigo Pepê por ele
 (function(){
@@ -493,6 +500,7 @@ function render(){
       stat(spot.lagoon ? "lagoa" : (cur.wave != null ? cur.wave.toFixed(1) + " m" : "–"), "ondas") + '</div>' +
     heroExtra() +
     '<div class="h2score">Índice KiteCheck: <b>' + (r.cls === "none" ? "–" : r.score + "/100") + '</b> · estimativa automática, não é autorização pra entrar na água.</div>' +
+    '<button class="share-btn" id="btnShare">📤 Mandar essa previsão pra galera</button>' +
     (r.reasons.length ? '<details class="why"><summary>Por que essa avaliação?</summary><ul class="reasons">' + r.reasons.map(x => '<li>' + esc(x) + '</li>').join("") + '</ul></details>' : '') +
   '</div>';
 
@@ -527,15 +535,16 @@ function render(){
   }
 
   // Melhor janela
+  lastData.win = win;
   html += windowCardHTML(hours, idx, spot, win);
 
   // Gráfico + próximas horas
   html += '<div class="card"><h2>📈 Vento nas próximas 24h' + proTag() + '</h2>' + windChart(hours, idx) + '<div class="hours">';
   hours.slice(idx, idx + 24).forEach(h => {
-    html += '<div class="h"><div class="muted">' + fmtH(h.date) + '</div><div class="kn">' + h.wind.toFixed(0) + '</div><div class="muted">' + h.gust.toFixed(0) + '</div>' +
-      '<span class="arr" style="transform:rotate(' + (h.dir + 180) + 'deg)">↑</span><div class="bar" style="background:' + COLORS[h.r.cls] + '"></div></div>';
+    html += '<div class="h"><div class="muted">' + fmtH(h.date) + '</div><div class="kn">' + h.wind.toFixed(0) + '<small>nós</small></div><div class="hg">raj. ' + h.gust.toFixed(0) + '</div>' +
+      '<div class="hd"><span class="arr" style="transform:rotate(' + (h.dir + 180) + 'deg)">↑</span> ' + dirName(h.dir) + '</div><div class="bar" style="background:' + COLORS[h.r.cls] + '"></div><div class="hl">' + LABEL[h.r.cls] + '</div></div>';
   });
-  html += '</div><div class="muted">Vento médio / rajada em nós · seta = para onde o vento sopra</div>' +
+  html += '</div><div class="muted">Número grande = vento médio · raj. = rajada (em nós) · letras = de onde o vento vem (a seta aponta pra onde ele vai) · cor = nota da hora</div>' +
     '<div class="legend">' + ["great","good","ok","bad","danger"].map(c => '<span style="background:' + COLORS[c] + '">' + LABEL[c] + '</span>').join("") + '</div></div>';
 
   // Próximos 7 dias
@@ -560,6 +569,7 @@ function render(){
   initWindChart();
   const bc = document.getElementById("btnCmp"); if (bc) bc.addEventListener("click", compareSpots);
   const br = document.getElementById("btnRetry"); if (br) br.addEventListener("click", load);
+  const bs = document.getElementById("btnShare"); if (bs) bs.addEventListener("click", shareForecast);
   renderWhere();
 }
 
@@ -700,6 +710,23 @@ function updateCompass(h, isNow){
   lb.innerHTML = rel[0] + (isNow ? "" : '<br><span class="muted">' + dayLong(h.date) + ", " + fmtH(h.date) + '</span>');
 }
 
+// ---------- Compartilhar a previsão (WhatsApp, etc.) ----------
+function shareForecast(){
+  const d = lastData; if (!d) return;
+  const cur = d.hours[d.idx], w = d.win, url = location.origin + location.pathname;
+  const span = x => fmtH(x.start.date) + "–" + fmtH(new Date(x.end.date.getTime() + 3600e3));
+  let text = "🪁 KiteCheck · " + d.spot.name + "\n";
+  text += w ? "✅ Melhor janela: " + dayLong(w.start.date) + ", " + span(w) + " · " + w.avg + " nós (rajadas até " + w.maxGust + ")" :
+              "Agora: " + Math.round(cur.wind) + " nós, rajadas " + Math.round(cur.gust) + " · " + LABEL[cur.r.cls] + ". Sem janela boa hoje nem amanhã.";
+  text += "\n🧭 " + windRel((w ? w.peak : cur).dir, d.spot)[0] + " · de " + dirName((w ? w.peak : cur).dir);
+  text += "\nVeja a previsão completa:";
+  const b = document.getElementById("btnShare");
+  if (navigator.share) { navigator.share({title: "KiteCheck", text: text, url: url}).catch(() => {}); return; }
+  const wa = "https://wa.me/?text=" + encodeURIComponent(text + " " + url);
+  const win = window.open(wa, "_blank");
+  if (!win && navigator.clipboard) navigator.clipboard.writeText(text + " " + url).then(() => { if (b) b.textContent = "✅ Texto copiado! Cole no WhatsApp"; }).catch(() => {});
+}
+
 // ---------- Cartão "Melhor janela" ----------
 function wstat(v, l){ return '<div class="wst"><b>' + v + '</b><small>' + l + '</small></div>'; }
 function windowCardHTML(hours, idx, spot, win){
@@ -780,7 +807,9 @@ async function compareSpots(){
   const body = document.getElementById("cmpBody"); if (!body) return;
   body.innerHTML = '<span class="spin"></span> Comparando ' + spots.length + ' picos…';
   try {
-    const rows = (await spotsData(spots)).filter(r => r.bestH);
+    const key = spots.map(s => s.id).join(",");
+    if (!whereCache || whereCache.key !== key || Date.now() - whereCache.ts > 15 * 60e3) whereCache = {key, ts: Date.now(), rows: await spotsData(spots)};
+    const rows = whereCache.rows.filter(r => r.bestH);
     const value = r => r.pick ? 1000 + r.pick.val : (r.bestH.r.cls === "danger" ? 0 : r.bestH.r.score);
     rows.sort((a, b) => value(b) - value(a));
     body.innerHTML = rows.map(row => {
@@ -1285,8 +1314,9 @@ document.querySelectorAll("#nav button").forEach(b => b.addEventListener("click"
 if (location.hash === "#guia" || location.hash === "#pro") showView(location.hash.slice(1));
 
 // Atualiza ao voltar pro app
-document.addEventListener("visibilitychange", () => { if (!document.hidden && lastData) load(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden && lastData && Date.now() - (lastData.fetchedAt || lastData.cachedAt || 0) > 10 * 60e3) load(); });
 load();
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 </script>
 </body>
 </html>
