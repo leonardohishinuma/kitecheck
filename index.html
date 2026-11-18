@@ -98,6 +98,9 @@ label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
   </select>
   <label>Vento mínimo pra você velejar (nós)</label>
   <input id="cfgMin" type="number" inputmode="numeric" min="5" max="30">
+  <label>Seus kites (m²) — separe por vírgula</label>
+  <input id="cfgKites" type="text" inputmode="decimal" placeholder="ex.: 9, 12">
+  <div class="muted" style="margin-top:4px">Com seus kites cadastrados, a nota diz se dá pra velejar com o SEU equipamento.</div>
   <hr style="border:0;border-top:1px solid var(--line);margin:16px 0 4px">
   <h2 style="margin-top:10px">Pico atual</h2>
   <label>Nome</label>
@@ -165,7 +168,7 @@ let spots = store.get("kc_spots", DEFAULT_SPOTS.slice());
 (function(){ const del = store.get("kc_deleted", []);
   DEFAULT_SPOTS.forEach(d => { const s = spots.find(x => x.id === d.id);
     if (!s && del.indexOf(d.id) < 0) spots.push(d); else if (s && d.lagoon) s.lagoon = true; }); })();
-let cfg = Object.assign({weight:75, level:"intermediario", min:12, spot:"pepe"}, store.get("kc_cfg", {}));
+let cfg = Object.assign({weight:75, level:"intermediario", min:12, spot:"pepe", kites:[]}, store.get("kc_cfg", {}));
 let lastData = null;
 
 const $ = s => document.querySelector(s);
@@ -188,9 +191,20 @@ function rate(h, spot){
   const w = h.wind;
   if (w < cfg.min - 3)      { score -= 80; reasons.push(`💨 Vento fraco demais (${w.toFixed(0)} nós).`); }
   else if (w < cfg.min)     { score -= 45; reasons.push(`💨 Vento no limite (${w.toFixed(0)} nós) — só com kite grande ou foil.`); }
-  else if (w <= L.max)      { reasons.push(`✅ Vento bom: ${w.toFixed(0)} nós.`); if (w >= 15 && w <= 24) score += 0; else score -= 8; }
+  else if (w <= L.max)      { if (w < cfg.min + 3) { score -= 25; reasons.push("👌 Vento no limite de baixo: " + w.toFixed(0) + " nós."); } else { reasons.push("✅ Vento bom: " + w.toFixed(0) + " nós."); if (w > 24) score -= 8; } }
   else if (w <= L.max + 5)  { score -= 40; reasons.push(`⚠️ Vento forte para o seu nível (${w.toFixed(0)} nós).`); }
   else                      { danger = true; reasons.push(`🚫 Vento muito forte (${w.toFixed(0)} nós).`); }
+
+  // Seus kites (se cadastrados)
+  const Q = cfg.kites || [];
+  if (Q.length && w >= cfg.min - 3) {
+    const ideal = cfg.weight * 2.2 / Math.max(w, 1), idealG = cfg.weight * 2.2 / Math.max(h.gust, 1);
+    const k = Q.reduce((a,b) => Math.abs(b - ideal) < Math.abs(a - ideal) ? b : a);
+    h.kite = k;
+    if (k < ideal * 0.78) { score -= Math.min(45, Math.round((ideal * 0.78 - k) * 8) + 10); reasons.push("🪁 Com seus kites fica fraco: o melhor seria o de " + k + " m², mas o ideal é ~" + Math.round(ideal) + " m²."); }
+    else if (k > idealG * 1.35) { score -= 35; reasons.push("🪁 Com seus kites fica forte demais nas rajadas: o de " + k + " m² passa do ideal (~" + Math.round(idealG) + " m²)."); if (k > idealG * 1.7) danger = true; }
+    else reasons.push("🪁 Vá de " + k + " m².");
+  }
 
   // Rajadas
   const gd = h.gust - w;
@@ -349,7 +363,7 @@ function render(){
       <div class="stat"><b>${cur.wave!=null?cur.wave.toFixed(1)+" m":"–"}</b><small>ondas</small></div>
     </div>
     <ul class="reasons">${r.reasons.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
-    ${ks && r.cls!=="none" ? `<div class="kite">🪁 Kite sugerido: <b>${ks} m²</b>${kiteSize(cur.gust) && kiteSize(cur.gust) < ks - 1 ? " (nas rajadas, " + kiteSize(cur.gust) + " m²)" : ""} · Roupa: <b>${wetsuit(cur.sea && cur.sea.sst != null ? cur.sea.sst : cur.temp)}</b></div>` : ""}
+    ${ks && r.cls!=="none" ? `<div class="kite">🪁 ${cur.kite ? "Seu kite: <b>" + cur.kite + " m²</b> · ideal" : "Kite sugerido:"} <b>${ks} m²</b>${kiteSize(cur.gust) && kiteSize(cur.gust) < ks - 1 ? " (nas rajadas, " + kiteSize(cur.gust) + " m²)" : ""} · Roupa: <b>${wetsuit(cur.sea && cur.sea.sst != null ? cur.sea.sst : cur.temp)}</b></div>` : ""}
     <div class="kite">${nextTxt}</div>
     ${heroExtra()}
   </div>`;
@@ -591,6 +605,7 @@ function openSettings(newSpot){
   $("#cfgWeight").value = cfg.weight;
   $("#cfgLevel").value = cfg.level;
   $("#cfgMin").value = cfg.min;
+  $("#cfgKites").value = (cfg.kites || []).join(", ");
   $("#cfgName").value = spot ? spot.name : "";
   $("#cfgSea").value = spot ? String(spot.sea) : "180";
   $("#dlg").showModal();
@@ -602,6 +617,7 @@ $("#cfgSave").addEventListener("click", () => {
   cfg.weight = Math.max(30, Math.min(150, +$("#cfgWeight").value || 75));
   cfg.level = $("#cfgLevel").value;
   cfg.min = Math.max(5, Math.min(30, +$("#cfgMin").value || 12));
+  cfg.kites = ($("#cfgKites").value.match(/\d+(?:\.\d+)?/g) || []).map(Number).filter(x => x >= 3 && x <= 21).sort((a,b) => a - b);
   const spot = spots.find(s => s.id === cfg.spot);
   if (spot) { spot.name = $("#cfgName").value.trim() || spot.name; spot.sea = +$("#cfgSea").value; }
   store.set("kc_cfg", cfg); store.set("kc_spots", spots);
