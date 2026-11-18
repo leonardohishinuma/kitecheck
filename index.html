@@ -181,6 +181,15 @@ dialog#dlg[open]{display:flex}
 .where-row{display:flex;justify-content:space-between;gap:8px;padding:10px 2px;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer}
 #btnFav{font-size:18px;color:var(--mut);padding:9px 11px}
 #btnFav.fav-on{color:#facc15;border-color:#a16207}
+.wbar{display:flex;gap:2px;margin:10px 0 3px;height:12px}
+.wbar i{flex:1;border-radius:3px;display:block}
+.wbar-l{display:flex;justify-content:space-between;font-size:10px;color:var(--mut)}
+.wgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0 8px}
+.wst{background:var(--card2);border-radius:10px;padding:7px 4px;text-align:center}
+.wst b{display:block;font-size:15px}
+.wst small{color:var(--mut);font-size:11px}
+.wwhy{font-size:14px;margin:4px 0 2px;line-height:1.4}
+.wnext{margin-top:10px;padding:9px 11px;border-radius:10px;background:var(--card2);font-size:14px}
 .warn{font-size:12px;color:var(--mut);text-align:center;margin-top:8px}
 </style>
 </head>
@@ -495,11 +504,7 @@ function render(){
   }
 
   // Melhor janela
-  html += '<div class="card mini"><div class="mi-ic">⏱️</div><div><div class="mi-t">Melhor janela' + proTag() + '</div>' +
-    (win ? '<div class="mi-v"><b>' + fmtDay(win.start.date) + ' ' + fmtH(win.start.date) + '–' + fmtH(new Date(win.end.date.getTime() + 3600e3)) + '</b> (' + win.len + 'h)</div>' +
-           '<div class="muted">Vento médio ' + win.avg + ' nós, rajadas até ' + win.maxGust + ' · melhor às ' + fmtH(win.peak.date) + '. Estimativa: as condições podem mudar rápido.</div>'
-         : '<div class="mi-v">Sem janela boa hoje nem amanhã</div><div class="muted">Veja os próximos dias abaixo ou compare outros picos.</div>') +
-  '</div></div>';
+  html += windowCardHTML(hours, idx, spot, win);
 
   // Gráfico + próximas horas
   html += '<div class="card"><h2>📈 Vento nas próximas 24h' + proTag() + '</h2>' + windChart(hours, idx) + '<div class="hours">';
@@ -604,6 +609,50 @@ function heroExtra(){
   if (s && s.rise) out.push("☀️ Sol " + s.rise + "–" + s.set + (s.uv != null ? " · UV máx " + s.uv.toFixed(0) + (s.uv >= 8 ? " (passe protetor!)" : "") : ""));
   if (cur.conf) out.push("📊 Os modelos de previsão " + (cur.conf === "alta" ? "concordam" : cur.conf === "média" ? "concordam em parte" : "discordam") + " (confiança " + cur.conf + ", " + d.nModels + " modelos)");
   return out.map(x => '<div class="kite">' + x + '</div>').join("");
+}
+
+// ---------- Cartão "Melhor janela" ----------
+function wstat(v, l){ return '<div class="wst"><b>' + v + '</b><small>' + l + '</small></div>'; }
+function windowCardHTML(hours, idx, spot, win){
+  const span = w => fmtH(w.start.date) + "–" + fmtH(new Date(w.end.date.getTime() + 3600e3));
+  const byDay = {}; hours.slice(idx).forEach(x => (byDay[x.t.slice(0,10)] = byDay[x.t.slice(0,10)] || []).push(x));
+  const keys = Object.keys(byDay).sort();
+  const strip = list => {
+    const dl = (list || []).filter(x => x.isDay); if (!dl.length) return "";
+    return '<div class="wbar">' + dl.map(x => '<i title="' + fmtH(x.date) + ' · ' + x.wind.toFixed(0) + ' nós" style="background:' + COLORS[x.r.cls] +
+      (win && x.t >= win.start.t && x.t <= win.end.t ? ';box-shadow:inset 0 0 0 2px #fff' : '') + '"></i>').join("") +
+      '</div><div class="wbar-l"><span>' + fmtH(dl[0].date) + '</span><span>' + fmtH(dl[dl.length - 1].date) + '</span></div>';
+  };
+  let h = '<div class="card mini"><div class="mi-ic">⏱️</div><div style="flex:1;min-width:0"><div class="mi-t">Melhor janela' + proTag() + '</div>';
+  if (win) {
+    const hs = hours.filter(x => x.t >= win.start.t && x.t <= win.end.t);
+    const kite = win.peak.kite || kiteSize(win.avg), rainMax = Math.max(...hs.map(x => x.rain));
+    h += '<div class="mi-v"><b>' + dayLong(win.start.date) + ', ' + span(win) + '</b> · ' + win.len + (win.len === 1 ? ' hora' : ' horas') + ' de vento bom</div>';
+    h += strip(byDay[win.start.t.slice(0,10)]);
+    h += '<div class="wgrid">' + wstat(win.avg + ' nós', 'vento médio') + wstat(win.maxGust + ' nós', 'rajada máx.') + wstat('de ' + dirName(win.peak.dir), 'direção') +
+      wstat(fmtH(win.peak.date), 'melhor hora') + (kite ? wstat(kite + ' m²', win.peak.kite ? 'seu kite' : 'kite estimado') : '') + wstat(rainMax + '%', 'chuva máx.') + '</div>';
+    h += '<div class="muted">' + (win.peak.conf ? 'Confiança da previsão: ' + win.peak.conf + '. ' : '') + 'O destaque branco na barra mostra a janela. É uma estimativa: confira as condições no local.</div>';
+  } else {
+    const k = keys.find(d => byDay[d].some(x => x.isDay)), day = k ? byDay[k] : [], dl = day.filter(x => x.isDay);
+    h += '<div class="mi-v">Sem janela boa hoje nem amanhã</div>';
+    if (dl.length) {
+      const best = dl.reduce((a, b) => (b.r.score > a.r.score || (b.r.score === a.r.score && b.wind > a.wind)) ? b : a), peak = dl.reduce((a, b) => b.wind > a.wind ? b : a);
+      const bad = dl.find(x => x.r.cls === "danger");
+      let why;
+      if (peak.wind < cfg.min) why = "Vento fraco: o máximo previsto " + (fmtDay(peak.date) === "Hoje" ? "hoje" : "para " + dayLong(peak.date).toLowerCase()) + " é " + Math.round(peak.wind) + " nós às " + fmtH(peak.date) + ", abaixo do seu mínimo de " + cfg.min + " nós.";
+      else if (bad && bad.r.alerts && bad.r.alerts.length) why = "Tem vento, mas com risco às " + fmtH(bad.date) + ": " + bad.r.alerts[0].t.replace(/^\S+\s/, "");
+      else why = "Tem vento em alguns horários, mas não fica bom por horas seguidas: rajadas, direção ou chuva atrapalham.";
+      h += '<div class="wwhy">' + esc(why) + '</div>' + strip(day);
+      h += '<div class="muted" style="margin-top:6px">Melhor hora ' + (fmtDay(best.date) === "Hoje" ? "de hoje" : "de " + dayLong(best.date).toLowerCase()) + ': <b>' + fmtH(best.date) + '</b> · ' +
+        Math.round(best.wind) + ' nós, rajadas ' + Math.round(best.gust) + ' (' + LABEL[best.r.cls].toLowerCase() + ').</div>';
+    }
+    let next = null;
+    for (const d of keys.slice(2)) { next = bestWindow(byDay[d]); if (next) break; }
+    h += next ? '<div class="wnext">📅 Próxima janela boa aqui: <b>' + dayLong(next.start.date) + ', ' + span(next) + '</b> (' + next.len + 'h, ' + next.avg + ' nós)</div>'
+              : '<div class="wnext">📅 Nenhuma janela boa nos próximos 7 dias neste pico.</div>';
+    h += '<div class="muted" style="margin-top:6px">Veja em "Onde velejar hoje?" se outro pico está melhor.</div>';
+  }
+  return h + '</div></div>';
 }
 
 // ---------- Dados de vários picos (comparador e "Onde velejar hoje") ----------
